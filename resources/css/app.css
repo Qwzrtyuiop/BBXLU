@@ -6,6 +6,60 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Rajdhani', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-display: 'Orbitron', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer base {
+    h1, h2, h3 {
+        font-family: var(--font-display);
+        letter-spacing: 0.02em;
+    }
+}
+
+@layer utilities {
+    .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+
+    .no-scrollbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .edge-fade-x {
+        --edge-fade-size: 18px;
+        --edge-fade-left: 0px;
+        --edge-fade-right: var(--edge-fade-size);
+        -webkit-mask-image: linear-gradient(
+            to right,
+            transparent 0,
+            #000 var(--edge-fade-left),
+            #000 calc(100% - var(--edge-fade-right)),
+            transparent 100%
+        );
+        mask-image: linear-gradient(
+            to right,
+            transparent 0,
+            #000 var(--edge-fade-left),
+            #000 calc(100% - var(--edge-fade-right)),
+            transparent 100%
+        );
+    }
+
+    .edge-fade-x.is-scrolled {
+        --edge-fade-left: var(--edge-fade-size);
+    }
+
+    .edge-fade-x.is-at-end {
+        --edge-fade-right: 0px;
+    }
+
+    @media (min-width: 640px) {
+        .edge-fade-x {
+            --edge-fade-size: 30px;
+        }
+    }
 }
