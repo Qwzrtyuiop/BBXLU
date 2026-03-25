@@ -16,16 +16,16 @@
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <a href="{{ route('home') }}" class="inline-flex items-center gap-2">
                     <span class="inline-block h-2.5 w-2.5 rounded-none bg-amber-400"></span>
-                    <span class="text-sm font-semibold uppercase tracking-[0.26em] text-amber-200">ELYU BladerHub</span>
+                    <span class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200 sm:text-sm sm:tracking-[0.26em]">ELYU BladerHub</span>
                 </a>
-                <div class="flex flex-wrap items-center gap-2">
-                    <a href="{{ route('home') }}#players" class="rounded-none border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-200 hover:border-amber-500 hover:text-amber-200">
+                <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+                    <a href="{{ route('home') }}#players" class="flex-1 rounded-none border border-slate-700 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-200 hover:border-amber-500 hover:text-amber-200 sm:flex-none">
                         Players
                     </a>
-                    <a href="{{ route('home') }}#register" class="rounded-none border border-slate-700 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-slate-200 hover:border-amber-500 hover:text-amber-200">
+                    <a href="{{ route('home') }}#register" class="flex-1 rounded-none border border-slate-700 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-200 hover:border-amber-500 hover:text-amber-200 sm:flex-none">
                         Register
                     </a>
-                    <a href="{{ route('login') }}" class="rounded-none border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-amber-200 hover:bg-amber-500/20">
+                    <a href="{{ route('login') }}" class="flex-1 rounded-none border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-amber-200 hover:bg-amber-500/20 sm:flex-none">
                         Login
                     </a>
                 </div>
@@ -38,8 +38,8 @@
     </main>
 
     <footer class="border-t border-slate-800/70 bg-slate-950/70">
-        <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 text-xs text-slate-400 sm:px-6 lg:px-8">
-            <p>&copy; 2026 La Union Bladers +</p>
+        <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-3 px-4 py-4 text-xs text-slate-400 sm:justify-between sm:px-6 lg:px-8">
+            <p class="text-center sm:text-left">&copy; 2026 La Union Bladers +</p>
             <div class="flex items-center gap-2">
                 <img src="{{ asset('images/agoo.png') }}" alt="Agoo icon" title="Agoo Bladers" class="h-6 w-6 object-contain" />
                 <img src="{{ asset('images/kimat.png') }}" alt="Kimat icon" title="Doc Kimat" class="h-6 w-6 object-contain" />

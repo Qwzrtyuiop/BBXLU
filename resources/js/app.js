@@ -6,7 +6,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const nextButton = document.querySelector('[data-carousel-next]');
 
     if (carousel && prevButton && nextButton) {
-        const scrollAmount = 220;
+        const getScrollAmount = () => {
+            const firstCard = carousel.querySelector('[data-event-card]');
+            if (!firstCard) {
+                return Math.max(220, Math.floor(carousel.clientWidth * 0.75));
+            }
+
+            const styles = window.getComputedStyle(carousel);
+            const gap = parseFloat(styles.columnGap || styles.gap || '0') || 0;
+            return Math.floor(firstCard.getBoundingClientRect().width + gap);
+        };
+
         const updateEdgeFadeState = () => {
             const maxScrollLeft = Math.max(0, carousel.scrollWidth - carousel.clientWidth);
             const atStart = carousel.scrollLeft <= 1;
@@ -17,11 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         prevButton.addEventListener('click', () => {
-            carousel.scrollBy({ left: -scrollAmount, behavior: 'smooth' });
+            carousel.scrollBy({ left: -getScrollAmount(), behavior: 'smooth' });
         });
 
         nextButton.addEventListener('click', () => {
-            carousel.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+            carousel.scrollBy({ left: getScrollAmount(), behavior: 'smooth' });
         });
 
         carousel.addEventListener('scroll', updateEdgeFadeState, { passive: true });
