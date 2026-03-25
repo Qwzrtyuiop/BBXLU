@@ -220,11 +220,19 @@
     }
 
     .clash-play .clash-impact {
-        animation: clash-impact-burst 240ms linear 1660ms 1 forwards;
+        animation: clash-impact-burst 250ms steps(1, end) 1660ms 1 forwards;
     }
 
-    .clash-play .clash-impact-sprite {
-        animation: clash-impact-sprite-frame 240ms linear 1660ms 1 forwards;
+    .clash-play .clash-impact-sprite-a {
+        animation: clash-impact-sprite-a 250ms steps(1, end) 1660ms 1 forwards;
+    }
+
+    .clash-play .clash-impact-sprite-b {
+        animation: clash-impact-sprite-b 250ms steps(1, end) 1660ms 1 forwards;
+    }
+
+    .clash-play .clash-impact-sprite-c {
+        animation: clash-impact-sprite-c 250ms steps(1, end) 1660ms 1 forwards;
     }
 
     .clash-play .clash-blade-art {
@@ -561,40 +569,80 @@
         opacity: 0;
     }
 
-    8% {
+    4% {
         background: #ffffff;
         mix-blend-mode: normal;
         opacity: 1;
     }
 
-    30% {
+    12% {
         background: #ffffff;
-        mix-blend-mode: difference;
-        opacity: 0.98;
+        mix-blend-mode: normal;
+        opacity: 1;
+    }
+
+    13% {
+        background: #ffffff;
+        mix-blend-mode: normal;
+        opacity: 0;
+    }
+
+    20% {
+        background: #000000;
+        mix-blend-mode: normal;
+        opacity: 1;
+    }
+
+    28% {
+        background: #000000;
+        mix-blend-mode: normal;
+        opacity: 1;
+    }
+
+    29% {
+        background: #000000;
+        mix-blend-mode: normal;
+        opacity: 0;
+    }
+
+    36% {
+        background: #ffffff;
+        mix-blend-mode: normal;
+        opacity: 1;
+    }
+
+    44% {
+        background: #ffffff;
+        mix-blend-mode: normal;
+        opacity: 1;
+    }
+
+    45% {
+        background: #ffffff;
+        mix-blend-mode: normal;
+        opacity: 0;
     }
 
     52% {
-        background: radial-gradient(
-            circle at center,
-            rgba(0, 0, 0, 0) 0,
-            rgba(0, 0, 0, 0) 8vh,
-            rgba(0, 0, 0, 0.94) 24vh,
-            rgba(0, 0, 0, 1) 46vh,
-            rgba(0, 0, 0, 1) 100%
-        );
+        background: #000000;
         mix-blend-mode: normal;
         opacity: 1;
     }
 
-    64% {
-        background: radial-gradient(
-            circle at center,
-            rgba(0, 0, 0, 0) 0,
-            rgba(0, 0, 0, 0) 15vh,
-            rgba(0, 0, 0, 0.9) 34vh,
-            rgba(0, 0, 0, 1) 62vh,
-            rgba(0, 0, 0, 1) 100%
-        );
+    60% {
+        background: #000000;
+        mix-blend-mode: normal;
+        opacity: 1;
+    }
+
+    61% {
+        background: #000000;
+        mix-blend-mode: normal;
+        opacity: 0;
+    }
+
+    68% {
+        background: #ffffff;
         mix-blend-mode: normal;
         opacity: 1;
     }
@@ -602,7 +650,31 @@
     76% {
         background: #ffffff;
         mix-blend-mode: normal;
-        opacity: 0.92;
+        opacity: 1;
+    }
+
+    77% {
+        background: #ffffff;
+        mix-blend-mode: normal;
+        opacity: 0;
+    }
+
+    84% {
+        background: #000000;
+        mix-blend-mode: normal;
+        opacity: 1;
+    }
+
+    92% {
+        background: #000000;
+        mix-blend-mode: normal;
+        opacity: 1;
+    }
+
+    93% {
+        background: #000000;
+        mix-blend-mode: normal;
+        opacity: 0;
     }
 
     100% {
@@ -612,23 +684,28 @@
     }
 }
 
-@keyframes clash-impact-sprite-frame {
+@keyframes clash-impact-sprite-a {
     0% {
         opacity: 0;
         transform: scale(0.98);
     }
 
-    34% {
+    8% {
         opacity: 0;
         transform: scale(0.99);
     }
 
-    42% {
+    10% {
         opacity: 1;
         transform: scale(1);
     }
 
-    52% {
+    18% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    19% {
         opacity: 0;
         transform: scale(1.01);
     }
@@ -636,6 +713,70 @@
     100% {
         opacity: 0;
         transform: scale(1.01);
+    }
+}
+
+@keyframes clash-impact-sprite-b {
+    0% {
+        opacity: 0;
+        transform: scaleX(-1) scale(0.99);
+    }
+
+    32% {
+        opacity: 0;
+        transform: scaleX(-1) scale(0.99);
+    }
+
+    34% {
+        opacity: 1;
+        transform: scaleX(-1) scale(1);
+    }
+
+    42% {
+        opacity: 1;
+        transform: scaleX(-1) scale(1);
+    }
+
+    43% {
+        opacity: 0;
+        transform: scaleX(-1) scale(1.02);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scaleX(-1) scale(1.02);
+    }
+}
+
+@keyframes clash-impact-sprite-c {
+    0% {
+        opacity: 0;
+        transform: scaleX(-1) scaleY(-1) scale(1);
+    }
+
+    56% {
+        opacity: 0;
+        transform: scaleX(-1) scaleY(-1) scale(1);
+    }
+
+    58% {
+        opacity: 1;
+        transform: scaleX(-1) scaleY(-1) scale(1.01);
+    }
+
+    66% {
+        opacity: 1;
+        transform: scaleX(-1) scaleY(-1) scale(1.01);
+    }
+
+    67% {
+        opacity: 0;
+        transform: scaleX(-1) scaleY(-1) scale(1.01);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scaleX(-1) scaleY(-1) scale(1.01);
     }
 }
 

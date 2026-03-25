@@ -17,7 +17,19 @@
         src="{{ asset('images/impact.png') }}"
         alt=""
         aria-hidden="true"
-        class="clash-impact-sprite hidden lg:block"
+        class="clash-impact-sprite clash-impact-sprite-a hidden lg:block"
+    />
+    <img
+        src="{{ asset('images/impact2.png') }}"
+        alt=""
+        aria-hidden="true"
+        class="clash-impact-sprite clash-impact-sprite-b hidden lg:block"
+    />
+    <img
+        src="{{ asset('images/impact3.jpg') }}"
+        alt=""
+        aria-hidden="true"
+        class="clash-impact-sprite clash-impact-sprite-c hidden lg:block"
     />
     {{-- Previous side positions (for quick restore):
          wiro: left-0 top-1/2 -translate-x-1/2 -translate-y-1/2
