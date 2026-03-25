@@ -11,9 +11,10 @@
                 @if ($event->description)
                     <p class="mt-3 max-w-3xl text-sm text-slate-300">{{ $event->description }}</p>
                 @endif
-                @if ($event->challonge_url)
+                @php($eventChallongeLink = $event->challonge_link ?: $event->challonge_url)
+                @if ($eventChallongeLink)
                     <a
-                        href="{{ $event->challonge_url }}"
+                        href="{{ $eventChallongeLink }}"
                         target="_blank"
                         rel="noopener noreferrer"
                         class="mt-3 inline-flex rounded-lg border border-emerald-500/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-emerald-200 hover:bg-emerald-500/10"

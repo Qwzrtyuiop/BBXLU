@@ -15,6 +15,7 @@ class Event extends Model
     protected $fillable = [
         'title',
         'description',
+        'challonge_link',
         'challonge_url',
         'event_type_id',
         'date',

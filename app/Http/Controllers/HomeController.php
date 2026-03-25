@@ -35,8 +35,10 @@ class HomeController extends Controller
 
         $ongoingTournamentLink = null;
         if ($ongoingTournament) {
-            if (filter_var($ongoingTournament->challonge_url, FILTER_VALIDATE_URL)) {
-                $ongoingTournamentLink = $ongoingTournament->challonge_url;
+            $storedLink = $ongoingTournament->challonge_link ?: $ongoingTournament->challonge_url;
+
+            if (filter_var($storedLink, FILTER_VALIDATE_URL)) {
+                $ongoingTournamentLink = $storedLink;
             } else {
                 $description = (string) ($ongoingTournament->description ?? '');
 

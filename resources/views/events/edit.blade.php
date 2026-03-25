@@ -21,8 +21,8 @@
                 <span class="text-sm text-slate-300">Challonge URL (optional)</span>
                 <input
                     type="url"
-                    name="challonge_url"
-                    value="{{ old('challonge_url', $event->challonge_url) }}"
+                    name="challonge_link"
+                    value="{{ old('challonge_link', old('challonge_url', $event->challonge_link ?: $event->challonge_url)) }}"
                     placeholder="https://challonge.com/..."
                     class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none"
                 >

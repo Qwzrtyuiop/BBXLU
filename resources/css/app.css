@@ -6,9 +6,9 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Rajdhani', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-sans: 'Exo 2', 'Rajdhani', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
-    --font-display: 'Orbitron', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    --font-display: 'Oxanium', 'Orbitron', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
@@ -20,6 +20,59 @@
 }
 
 @layer utilities {
+    .type-kicker {
+        font-family: var(--font-display);
+        font-weight: 600;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+    }
+
+    .type-headline {
+        font-family: var(--font-display);
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .type-title {
+        font-family: var(--font-display);
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+    }
+
+    .type-stat {
+        font-family: var(--font-display);
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .type-display-copy {
+        font-family: var(--font-display);
+        font-weight: 600;
+        letter-spacing: 0.015em;
+    }
+
+    .type-label {
+        font-family: var(--font-display);
+        font-weight: 600;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+    }
+
+    .type-body {
+        font-family: var(--font-sans);
+        font-weight: 500;
+        line-height: 1.5;
+    }
+
+    .type-body-strong {
+        font-family: var(--font-sans);
+        font-weight: 600;
+        line-height: 1.45;
+    }
+
     .no-scrollbar {
         -ms-overflow-style: none;
         scrollbar-width: none;

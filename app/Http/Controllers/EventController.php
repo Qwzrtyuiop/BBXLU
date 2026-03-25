@@ -42,6 +42,7 @@ class EventController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'challonge_link' => ['nullable', 'url', 'max:2048'],
             'challonge_url' => ['nullable', 'url', 'max:2048'],
             'event_type_id' => ['required', 'exists:event_types,id'],
             'date' => ['required', 'date'],
@@ -51,11 +52,13 @@ class EventController extends Controller
         ]);
 
         $creator = $this->resolveCreator($data['created_by_nickname']);
+        $challongeLink = $data['challonge_link'] ?: ($data['challonge_url'] ?? null);
 
         $event = Event::query()->create([
             'title' => $data['title'],
             'description' => $data['description'],
-            'challonge_url' => $data['challonge_url'] ?: null,
+            'challonge_link' => $challongeLink,
+            'challonge_url' => $challongeLink,
             'event_type_id' => $data['event_type_id'],
             'date' => $data['date'],
             'location' => $data['location'],
@@ -80,6 +83,7 @@ class EventController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'challonge_link' => ['nullable', 'url', 'max:2048'],
             'challonge_url' => ['nullable', 'url', 'max:2048'],
             'event_type_id' => ['required', 'exists:event_types,id'],
             'date' => ['required', 'date'],
@@ -89,11 +93,13 @@ class EventController extends Controller
         ]);
 
         $creator = $this->resolveCreator($data['created_by_nickname']);
+        $challongeLink = $data['challonge_link'] ?: ($data['challonge_url'] ?? null);
 
         $event->update([
             'title' => $data['title'],
             'description' => $data['description'],
-            'challonge_url' => $data['challonge_url'] ?: null,
+            'challonge_link' => $challongeLink,
+            'challonge_url' => $challongeLink,
             'event_type_id' => $data['event_type_id'],
             'date' => $data['date'],
             'location' => $data['location'],
