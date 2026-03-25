@@ -39,6 +39,124 @@ document.addEventListener('DOMContentLoaded', () => {
         updateEdgeFadeState();
     }
 
+    const introHalf = document.querySelector('[data-intro-half]');
+    const secondHalf = document.querySelector('[data-second-half]');
+    const proceedButton = document.querySelector('[data-proceed-btn]');
+    const debugReturnButton = document.querySelector('[data-debug-return]');
+
+    if (introHalf && secondHalf && proceedButton) {
+        const root = document.documentElement;
+        const body = document.body;
+        const introFit = introHalf.querySelector('[data-intro-fit]');
+        let minSecondHalfTop = null;
+
+        const lockInitialScroll = () => {
+            root.style.overflowY = 'hidden';
+            body.style.overflowY = 'hidden';
+            window.scrollTo({ top: 0, behavior: 'auto' });
+        };
+
+        const fitIntroToViewport = () => {
+            if (!introFit) {
+                return;
+            }
+
+            introFit.style.transform = '';
+            introFit.style.transformOrigin = '';
+
+            const availableHeight = introHalf.getBoundingClientRect().height;
+            const contentHeight = introFit.scrollHeight;
+            if (!availableHeight || !contentHeight) {
+                return;
+            }
+
+            const scale = Math.min(1, (availableHeight - 12) / contentHeight);
+            if (scale < 1) {
+                introFit.style.transformOrigin = 'top center';
+                introFit.style.transform = `scale(${scale})`;
+            }
+        };
+
+        const scheduleIntroFit = () => window.requestAnimationFrame(fitIntroToViewport);
+
+        const unlockScroll = () => {
+            root.style.overflowY = '';
+            body.style.overflowY = '';
+        };
+
+        const keepSecondHalfLocked = () => {
+            if (minSecondHalfTop === null) {
+                return;
+            }
+
+            if (window.scrollY < minSecondHalfTop) {
+                window.scrollTo({ top: minSecondHalfTop, behavior: 'auto' });
+            }
+        };
+
+        lockInitialScroll();
+        fitIntroToViewport();
+        window.requestAnimationFrame(fitIntroToViewport);
+        window.addEventListener('resize', scheduleIntroFit);
+        window.addEventListener('load', scheduleIntroFit);
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(scheduleIntroFit);
+        }
+
+        const clashDurationMs = 1660;
+        const clashTransitionMs = clashDurationMs;
+        const lockSecondHalfDelayMs = 500;
+
+        proceedButton.addEventListener('click', () => {
+            if (proceedButton.disabled) {
+                return;
+            }
+
+            proceedButton.disabled = true;
+            proceedButton.classList.add('opacity-60', 'cursor-not-allowed');
+            body.classList.add('clash-play');
+
+            window.setTimeout(() => {
+                unlockScroll();
+                window.removeEventListener('resize', scheduleIntroFit);
+                window.removeEventListener('load', scheduleIntroFit);
+                if (introFit) {
+                    introFit.style.transform = '';
+                    introFit.style.transformOrigin = '';
+                }
+
+                const secondHalfTop = secondHalf.getBoundingClientRect().top + window.scrollY;
+                minSecondHalfTop = Math.max(0, secondHalfTop - 8);
+                window.scrollTo({ top: minSecondHalfTop, behavior: 'smooth' });
+
+                window.setTimeout(() => {
+                    keepSecondHalfLocked();
+                    window.addEventListener('scroll', keepSecondHalfLocked, { passive: true });
+                }, lockSecondHalfDelayMs);
+            }, clashTransitionMs);
+        });
+
+        if (debugReturnButton) {
+            debugReturnButton.addEventListener('click', () => {
+                window.removeEventListener('scroll', keepSecondHalfLocked);
+                minSecondHalfTop = null;
+                body.classList.remove('clash-play');
+
+                proceedButton.disabled = false;
+                proceedButton.classList.remove('opacity-60', 'cursor-not-allowed');
+
+                lockInitialScroll();
+                fitIntroToViewport();
+                window.requestAnimationFrame(fitIntroToViewport);
+                window.addEventListener('resize', scheduleIntroFit);
+                window.addEventListener('load', scheduleIntroFit);
+                if (document.fonts && document.fonts.ready) {
+                    document.fonts.ready.then(scheduleIntroFit);
+                }
+            });
+        }
+    }
+
     const floatingRails = document.querySelectorAll('[data-float-rail]');
     const eventsAnchor = document.querySelector('[data-events-anchor]');
     const desktopMedia = window.matchMedia('(min-width: 1280px)');

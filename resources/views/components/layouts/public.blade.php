@@ -10,6 +10,39 @@
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
     <div class="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.14),transparent_28%),radial-gradient(circle_at_82%_8%,rgba(14,165,233,0.13),transparent_24%),linear-gradient(180deg,#020617_0%,#0b1120_55%,#0a0f1c_100%)]"></div>
+    <div class="clash-flash clash-flash-left hidden lg:block" aria-hidden="true"></div>
+    <div class="clash-flash clash-flash-right hidden lg:block" aria-hidden="true"></div>
+    <div class="clash-impact hidden lg:block" aria-hidden="true"></div>
+    <img
+        src="{{ asset('images/impact.png') }}"
+        alt=""
+        aria-hidden="true"
+        class="clash-impact-sprite hidden lg:block"
+    />
+    {{-- Previous side positions (for quick restore):
+         wiro: left-0 top-1/2 -translate-x-1/2 -translate-y-1/2
+         dranb: right-0 top-1/2 translate-x-1/2 -translate-y-1/2
+    --}}
+    <div
+        aria-hidden="true"
+        class="clash-blade clash-blade-left hidden w-[clamp(22rem,34vw,36rem)] lg:block"
+    >
+        <img
+            src="{{ asset('images/wiro.png') }}"
+            alt=""
+            class="clash-blade-art h-full w-full"
+        />
+    </div>
+    <div
+        aria-hidden="true"
+        class="clash-blade clash-blade-right hidden w-[clamp(22rem,34vw,36rem)] lg:block"
+    >
+        <img
+            src="{{ asset('images/dranb.png') }}"
+            alt=""
+            class="clash-blade-art h-full w-full"
+        />
+    </div>
 
     <header class="sticky top-0 z-30 border-b border-slate-800/70 bg-slate-950/80 backdrop-blur-xl">
         <div class="w-full px-4 py-4 sm:px-6 lg:px-8">
