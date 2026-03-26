@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const root = document.documentElement;
         const body = document.body;
         const introFit = introHalf.querySelector('[data-intro-fit]');
+        const stickyHeader = document.querySelector('header.sticky');
         let minSecondHalfTop = null;
 
         const lockInitialScroll = () => {
@@ -94,6 +95,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        const getSecondHalfTargetTop = () => {
+            const secondHalfTop = secondHalf.getBoundingClientRect().top + window.scrollY;
+            const headerHeight = stickyHeader ? stickyHeader.getBoundingClientRect().height : 0;
+            const revealOffset = 12;
+            return Math.max(0, secondHalfTop - headerHeight - revealOffset);
+        };
+
         lockInitialScroll();
         fitIntroToViewport();
         window.requestAnimationFrame(fitIntroToViewport);
@@ -125,8 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     introFit.style.transformOrigin = '';
                 }
 
-                const secondHalfTop = secondHalf.getBoundingClientRect().top + window.scrollY;
-                minSecondHalfTop = Math.max(0, secondHalfTop - 8);
+                minSecondHalfTop = getSecondHalfTargetTop();
                 window.scrollTo({ top: minSecondHalfTop, behavior: 'smooth' });
 
                 window.setTimeout(() => {

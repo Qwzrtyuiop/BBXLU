@@ -62,7 +62,7 @@
         </div>
     </section>
 
-    <section id="players" class="mb-10 sm:mb-12 xl:mb-6" data-events-anchor data-second-half>
+    <section id="players" class="mb-10 scroll-mt-24 sm:mb-12 xl:mb-6" data-events-anchor data-second-half>
         <article class="mx-auto w-full max-w-6xl bg-slate-900/70 p-4 ring-1 ring-amber-400/35 sm:p-8 lg:p-9">
                 <div class="mb-6 border-b border-slate-800/80 pb-4">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -399,7 +399,7 @@
         </article>
     </section>
 
-    <section id="register" class="bg-slate-900/80 p-6 ring-1 ring-amber-400/35">
+    <section id="register" class="scroll-mt-24 bg-slate-900/80 p-6 ring-1 ring-amber-400/35">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <p class="type-kicker text-xs text-amber-300">Register</p>
