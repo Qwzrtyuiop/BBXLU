@@ -71,13 +71,15 @@
                             <h1 class="type-headline mt-1 text-2xl text-amber-100 sm:text-3xl">Events</h1>
                         </div>
                         <div class="flex items-center gap-2">
-                            <button
-                                type="button"
-                                data-debug-return
-                                class="type-label inline-flex h-9 items-center justify-center border border-rose-400/60 bg-rose-500/10 px-3 text-[10px] text-rose-200 transition hover:bg-rose-500/20"
-                            >
-                                Debug Return
-                            </button>
+                            @if (config('app.debug'))
+                                <button
+                                    type="button"
+                                    data-debug-return
+                                    class="type-label inline-flex h-9 items-center justify-center border border-rose-400/60 bg-rose-500/10 px-3 text-[10px] text-rose-200 transition hover:bg-rose-500/20"
+                                >
+                                    Debug Return
+                                </button>
+                            @endif
                             <button
                                 type="button"
                                 data-carousel-prev

@@ -18,6 +18,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! $this->shouldSeedMockData()) {
+            return;
+        }
+
         DB::transaction(function (): void {
             $now = now();
 
@@ -185,9 +189,18 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! $this->shouldSeedMockData()) {
+            return;
+        }
+
         DB::transaction(function (): void {
             $this->purgeMockData();
         });
+    }
+
+    private function shouldSeedMockData(): bool
+    {
+        return app()->environment('local');
     }
 
     private function purgeMockData(): void

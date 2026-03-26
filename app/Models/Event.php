@@ -60,4 +60,31 @@ class Event extends Model
     {
         return $this->hasMany(EventMatch::class);
     }
+
+    public function storedChallongeLink(): ?string
+    {
+        $link = $this->challonge_link ?: $this->challonge_url;
+
+        return is_string($link) && $link !== '' ? $link : null;
+    }
+
+    public function resolvedChallongeLink(): ?string
+    {
+        $storedLink = $this->storedChallongeLink();
+
+        if ($storedLink && filter_var($storedLink, FILTER_VALIDATE_URL)) {
+            return $storedLink;
+        }
+
+        $description = (string) ($this->description ?? '');
+
+        if (
+            preg_match('/https?:\/\/(?:www\.)?challonge\.com\/[^\s)]+/i', $description, $matches) === 1 ||
+            preg_match('/https?:\/\/[^\s)]+/i', $description, $matches) === 1
+        ) {
+            return rtrim($matches[0], '.,;!?)]');
+        }
+
+        return filter_var($this->location, FILTER_VALIDATE_URL) ? $this->location : null;
+    }
 }
