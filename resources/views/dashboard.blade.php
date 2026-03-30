@@ -739,9 +739,9 @@
 
                                 <p class="text-[11px] text-slate-500">
                                     {{ $selectedEventStarted
-                                        ? 'Open the modal to review the locked roster and participant deck status.'
+                                        ? 'Open to review the locked roster and participant deck status.'
                                         : ($selectedEventParticipants->isNotEmpty()
-                                            ? 'Open the modal to view the full roster, deck tags, and removal controls.'
+                                            ? 'Open to view the full roster, deck tags, and removal controls.'
                                             : 'No participants yet. Add players, then open the modal when the roster is ready.') }}
                                 </p>
                             </div>

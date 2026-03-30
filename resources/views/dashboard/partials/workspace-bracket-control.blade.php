@@ -161,8 +161,8 @@
             <p class="mt-1 text-[11px] leading-snug text-slate-500">{{ $nextGateDetail }}</p>
 
             <div class="mt-3 border-t border-slate-800 pt-2">
-                <p class="text-[9px] uppercase tracking-[0.16em] text-slate-500">Flow</p>
-                <p class="mt-1 text-[11px] leading-snug text-slate-400">Register players, complete Swiss, seed top cut, finish elimination, conclude event.</p>
+                <p class="text-[9px] uppercase tracking-[0.16em] text-slate-500">Test</p>
+                <p class="mt-1 text-[11px] leading-snug text-slate-400">Ano pwede ilagay dito.</p>
             </div>
         </aside>
     </div>
