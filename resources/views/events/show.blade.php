@@ -222,7 +222,7 @@
                                             </div>
                                         @else
                                             @php
-                                                $matchWinThreshold = $event->battleWinThresholdForStage($round->stage, $round->matches->count());
+                                                $matchWinThreshold = $event->battleWinThresholdForMatch($match, $round, $round->stage, $round->matches->count());
                                                 $battleSlotCount = $event->maxBattleSlotsForThreshold($matchWinThreshold);
                                             @endphp
                                             <form action="{{ route('events.matches.store', $event) }}" method="POST" class="mt-4 grid gap-4">

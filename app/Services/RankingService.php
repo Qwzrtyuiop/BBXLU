@@ -13,7 +13,42 @@ class RankingService
      */
     public function leaderboard(int $limit = 50): Collection
     {
-        $rows = DB::table('event_results as er')
+        return $this->leaderboardRows($limit);
+    }
+
+    public function leaderboardWithAllPlayers(): Collection
+    {
+        $rankedRows = $this->leaderboardRows();
+        $rankedPlayerIds = $rankedRows->pluck('player_id');
+
+        $unrankedRows = Player::query()
+            ->with('user')
+            ->whereDoesntHave('results')
+            ->get()
+            ->reject(fn (Player $player) => $rankedPlayerIds->contains($player->id))
+            ->sortBy(fn (Player $player) => strtolower($player->user->nickname))
+            ->values()
+            ->map(function (Player $player) {
+                return (object) [
+                    'player_id' => $player->id,
+                    'nickname' => $player->user->nickname,
+                    'events_played' => 0,
+                    'first_places' => 0,
+                    'points' => 0,
+                    'is_claimed' => (bool) $player->user->is_claimed,
+                    'rank' => null,
+                    'is_ranked' => false,
+                ];
+            });
+
+        return $rankedRows
+            ->concat($unrankedRows)
+            ->values();
+    }
+
+    private function leaderboardRows(?int $limit = 50): Collection
+    {
+        $query = DB::table('event_results as er')
             ->join('events as e', 'e.id', '=', 'er.event_id')
             ->join('event_types as et', 'et.id', '=', 'e.event_type_id')
             ->join('players as p', 'p.id', '=', 'er.player_id')
@@ -21,6 +56,7 @@ class RankingService
             ->selectRaw('
                 p.id as player_id,
                 u.nickname,
+                u.is_claimed,
                 count(er.id) as events_played,
                 sum(case when er.placement = 1 then 1 else 0 end) as first_places,
                 sum(case
@@ -29,15 +65,20 @@ class RankingService
                     else case er.placement when 1 then 6 when 2 then 4 when 3 then 3 when 4 then 1 else 0 end
                 end) as points
             ')
-            ->groupBy('p.id', 'u.nickname')
+            ->groupBy('p.id', 'u.nickname', 'u.is_claimed')
             ->orderByDesc('points')
             ->orderByDesc('first_places')
-            ->orderBy('u.nickname')
-            ->limit($limit)
-            ->get();
+            ->orderBy('u.nickname');
+
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        $rows = $query->get();
 
         return $rows->values()->map(function ($row, int $index) {
             $row->rank = $index + 1;
+            $row->is_ranked = true;
             return $row;
         });
     }

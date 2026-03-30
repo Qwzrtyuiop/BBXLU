@@ -31,14 +31,39 @@
             && ! $selectedEventStarted
             && ! $selectedEvent->usesLockedDecks()
             && $hasParticipantRegistrationErrors;
+        $hasLockedDeckParticipantRegistrationErrors = $activePanel === 'workspace'
+            && $selectedEvent
+            && ! $selectedEventStarted
+            && $selectedEvent->usesLockedDecks()
+            && ! old('deck_player_id')
+            && (
+                $errors->has('nickname')
+                || $errors->has('selected_nicknames')
+                || $errors->has('selected_nicknames.*')
+                || $errors->has('deck_bey1')
+                || $errors->has('deck_bey2')
+                || $errors->has('deck_bey3')
+            );
+        $lockedDeckParticipantMode = old('locked_participant_mode') === 'existing' ? 'existing' : 'new';
+        $showLockedDeckNewParticipantModal = $hasLockedDeckParticipantRegistrationErrors && $lockedDeckParticipantMode === 'new';
+        $showLockedDeckExistingParticipantModal = $hasLockedDeckParticipantRegistrationErrors && $lockedDeckParticipantMode === 'existing';
+        $showPlayersRegisterModal = $activePanel === 'players'
+            && $playerRegistrationEvent
+            && ! $playerRegistrationEvent->usesLockedDecks()
+            && $hasParticipantRegistrationErrors;
         $hasDeckRegistrationErrors = $errors->has('deck_bey1')
             || $errors->has('deck_bey2')
             || $errors->has('deck_bey3');
+        $hasBulkDeckRegistrationInput = old('decks') !== null;
+        $shouldReopenDeckRegistrationModal = $activePanel === 'workspace'
+            && $selectedEvent
+            && $selectedDeckRegistrationTargets->isNotEmpty()
+            && session('deck_modal_reopen') === true;
         $showDeckRegistrationModal = $activePanel === 'workspace'
             && $selectedEvent
             && $selectedDeckRegistrationTargets->isNotEmpty()
-            && $hasDeckRegistrationErrors;
-        $oldDeckPlayerId = (int) old('deck_player_id', 0);
+            && ($hasDeckRegistrationErrors || $hasBulkDeckRegistrationInput || $shouldReopenDeckRegistrationModal);
+        $oldDeckPlayerId = (int) old('deck_player_id', session('deck_modal_focus_player_id', 0));
         $oldSelectedNicknames = collect(old('selected_nicknames', []))
             ->map(fn ($nickname) => trim((string) $nickname))
             ->filter()
@@ -184,9 +209,9 @@
 
             <section class="min-w-0 min-h-0 overflow-hidden border border-slate-800/85 bg-[linear-gradient(160deg,rgba(2,6,23,0.96)_0%,rgba(15,23,42,0.98)_100%)] p-2.5 shadow-[0_16px_36px_rgba(2,6,23,0.34)] sm:p-3">
             @if ($activePanel === 'overview')
-            <div class="grid h-full gap-2 xl:grid-cols-[minmax(0,1.38fr)_12.25rem]">
-                <article class="grid min-h-0 gap-2">
-                    <div class="border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-3">
+            <div class="grid h-full items-start gap-2.5 xl:grid-cols-[minmax(0,1.42fr)_13.25rem]">
+                <article class="grid min-h-0 content-start gap-2.5">
+                    <div class="self-start border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-3">
                         <div class="flex flex-wrap items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <p class="type-kicker text-[10px] text-cyan-300/75">{{ $overviewEventLabel }}</p>
@@ -266,7 +291,7 @@
                         @endif
                     </div>
 
-                    <div class="grid min-h-0 gap-2 xl:grid-cols-[minmax(0,.82fr)_minmax(0,1.18fr)]">
+                    <div class="grid min-h-0 gap-2.5 xl:grid-cols-[minmax(0,.68fr)_minmax(0,1.32fr)]">
                         <article class="min-h-0 overflow-hidden border border-amber-400/30 bg-[linear-gradient(160deg,rgba(251,191,36,0.08)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
                             <div class="flex items-center justify-between gap-2">
                                 <p class="type-title text-[13px] text-amber-100">Upcoming Events</p>
@@ -284,20 +309,54 @@
                             </div>
                         </article>
 
-                        <article class="min-h-0 overflow-hidden border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.18)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
-                            <div class="flex items-center justify-between gap-2">
-                                <p class="type-title text-[13px] text-cyan-100">Leaderboard Preview</p>
-                                <a href="{{ route('dashboard', ['panel' => 'players']) }}" class="type-label text-[9px] text-slate-300 hover:text-cyan-200">Players</a>
+                        <article class="min-h-0 overflow-hidden border border-cyan-400/35 bg-[linear-gradient(165deg,rgba(8,47,73,0.28)_0%,rgba(2,6,23,0.93)_42%,rgba(2,6,23,0.99)_100%)] p-3 shadow-[0_16px_34px_rgba(2,6,23,0.36)]">
+                            <div class="pointer-events-none h-px w-full bg-gradient-to-r from-cyan-300/0 via-cyan-300/65 to-cyan-300/0"></div>
+                            <div class="mt-3 flex items-start justify-between gap-3">
+                                <div>
+                                    <p class="type-kicker text-[10px] text-cyan-300/75">Season Rankings</p>
+                                    <h3 class="type-title mt-1 text-sm text-cyan-100">Top Bladers</h3>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="type-label text-[8px] text-slate-500">top 10</span>
+                                    <a href="{{ route('dashboard', ['panel' => 'players']) }}" class="type-label text-[9px] text-slate-300 hover:text-cyan-200">Players</a>
+                                </div>
                             </div>
-                            <div class="mt-2 space-y-1 overflow-y-auto no-scrollbar">
-                                @forelse ($leaderboard->take(4) as $row)
-                                    <div class="flex items-center gap-2.5 border border-slate-800/80 bg-slate-950/65 px-2.5 py-1">
-                                        <span class="type-stat w-5 text-[13px] text-amber-300">{{ $row->rank }}</span>
-                                        <div class="min-w-0 flex-1">
-                                            <p class="type-display-copy truncate text-[13px] text-slate-100">{{ $row->nickname }}</p>
-                                            <p class="type-label mt-0.5 text-[8px] text-slate-500">{{ $row->events_played }} events</p>
-                                        </div>
-                                        <span class="type-stat text-[13px] text-cyan-200">{{ $row->points }}</span>
+                            <div class="mt-3 h-px bg-gradient-to-r from-cyan-300/0 via-cyan-300/55 to-cyan-300/0"></div>
+                            <div class="mt-3 space-y-1.5 overflow-y-auto no-scrollbar">
+                                @forelse ($leaderboard->take(10) as $row)
+                                    @php
+                                        $rank = (int) $row->rank;
+                                        $tier = match ($rank) {
+                                            1 => 'diamond',
+                                            2 => 'gold',
+                                            3 => 'silver',
+                                            4 => 'bronze',
+                                            default => 'base',
+                                        };
+
+                                        $rowClass = match ($tier) {
+                                            'diamond' => 'flex min-h-10 items-center justify-between border border-sky-200/80 bg-[linear-gradient(90deg,rgba(56,189,248,0.34),rgba(14,116,144,0.24),rgba(2,6,23,0.9))] px-2.5 py-2 text-xs shadow-[0_0_18px_rgba(56,189,248,0.26)]',
+                                            'gold' => 'flex min-h-9 items-center justify-between border border-amber-300/65 bg-[linear-gradient(90deg,rgba(251,191,36,0.2),rgba(2,6,23,0.9))] px-2 py-1.5 text-xs',
+                                            'silver' => 'flex min-h-9 items-center justify-between border border-zinc-200/55 bg-[linear-gradient(90deg,rgba(228,228,231,0.22),rgba(161,161,170,0.14),rgba(2,6,23,0.9))] px-2 py-1.5 text-xs',
+                                            'bronze' => 'flex min-h-9 items-center justify-between border border-orange-300/60 bg-[linear-gradient(90deg,rgba(251,146,60,0.16),rgba(2,6,23,0.9))] px-2 py-1.5 text-xs',
+                                            default => 'flex h-8 items-center justify-between border border-slate-800/75 bg-slate-950/72 px-2 py-1.5 text-xs',
+                                        };
+                                    @endphp
+
+                                    <div class="{{ $rowClass }}">
+                                        <p class="flex w-10 items-center gap-1 font-bold tracking-[0.03em] text-amber-300 [font-family:var(--font-display)]">
+                                            <span class="inline-flex h-3.5 w-3.5 items-center justify-center">
+                                                @if ($rank === 1)
+                                                    <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5 text-amber-300" aria-hidden="true">
+                                                        <path d="M3 15.5h14l-1.1-7-3.9 3.2L10 4.5 8 11.7 4.1 8.5 3 15.5Z" fill="currentColor"/>
+                                                        <path d="M6.2 17h7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                                    </svg>
+                                                @endif
+                                            </span>
+                                            <span class="tabular-nums">{{ $row->rank }}</span>
+                                        </p>
+                                        <p class="type-display-copy min-w-0 flex-1 truncate ml-1 pr-2 text-[13px] text-slate-100">{{ $row->nickname }}</p>
+                                        <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->points }}</p>
                                     </div>
                                 @empty
                                     <p class="type-body text-sm text-slate-400">No ranking data yet.</p>
@@ -307,7 +366,7 @@
                     </div>
                 </article>
 
-                <div class="grid min-h-0 gap-2">
+                <div class="grid min-h-0 content-start gap-2.5">
                     <article class="border border-fuchsia-300/35 bg-[linear-gradient(160deg,rgba(112,26,117,0.16)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
                         <div class="flex items-center justify-between gap-2">
                             <p class="type-title text-[13px] text-fuchsia-100">Award Leaders</p>
@@ -329,7 +388,16 @@
                     </article>
 
                     <article class="min-h-0 overflow-hidden border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.18)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
-                        <p class="type-title text-[13px] text-cyan-100">{{ $latestEvent?->title ?: 'Latest Event' }}</p>
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="type-kicker text-[10px] text-cyan-300/75">Latest Event</p>
+                                <p class="type-title mt-1 truncate text-[13px] text-cyan-100">{{ $latestEvent?->title ?: 'No finished event yet' }}</p>
+                                @if ($latestEvent)
+                                    <p class="type-label mt-1 text-[8px] text-slate-500">{{ $latestEvent->date->format('d M Y') }} - {{ $latestEvent->eventType->name }}</p>
+                                @endif
+                            </div>
+                            <span class="type-label text-[8px] text-slate-500">top 4</span>
+                        </div>
                         <div class="mt-2 space-y-1 overflow-y-auto no-scrollbar">
                             @forelse ($latestEventPlacements as $result)
                                 <div class="flex items-center gap-2.5 border border-slate-800/80 bg-slate-950/65 px-2.5 py-1">
@@ -615,37 +683,32 @@
                                     <p class="text-[11px] text-slate-500">You can still review the roster and continue match or deck operations, but the participant list can no longer change.</p>
                                 </div>
                             @elseif ($selectedEvent->usesLockedDecks())
-                                <form action="{{ route('events.participants.store', $selectedEvent) }}" method="POST" class="mt-2.5 grid gap-2.5">
-                                    @csrf
-                                    <input type="hidden" name="dashboard_redirect" value="1">
-                                    <input type="hidden" name="dashboard_panel" value="workspace">
-                                    <input type="hidden" name="dashboard_event_id" value="{{ $selectedEvent->id }}">
-                                    <label class="grid gap-1">
-                                        <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Nickname</span>
-                                        <input name="nickname" value="{{ old('nickname') }}" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                    </label>
-                                    <div class="grid gap-2 sm:grid-cols-2">
-                                        <label class="grid gap-1">
-                                            <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Bey 1</span>
-                                            <input name="deck_bey1" value="{{ old('deck_bey1') }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                        </label>
-                                        <label class="grid gap-1">
-                                            <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Bey 2</span>
-                                            <input name="deck_bey2" value="{{ old('deck_bey2') }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                        </label>
-                                        <label class="grid gap-1 sm:col-span-2">
-                                            <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Bey 3</span>
-                                            <input name="deck_bey3" value="{{ old('deck_bey3') }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                        </label>
+                                <div class="mt-2.5 grid gap-2 border border-slate-800/80 bg-slate-950/55 p-3">
+                                    <p class="text-[11px] text-slate-400">Locked-deck events register one player at a time together with Beys 1-3.</p>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            data-locked-participant-open="locked-deck-new-player"
+                                            class="type-label border border-amber-400/70 bg-amber-400/12 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20"
+                                        >
+                                            Add New Player
+                                        </button>
+                                        <button
+                                            type="button"
+                                            data-locked-participant-open="locked-deck-existing-player"
+                                            @disabled($registerableUsers->isEmpty())
+                                            class="type-label border border-cyan-500/60 bg-cyan-500/10 px-3 py-1.5 text-[9px] text-cyan-100 transition hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500"
+                                        >
+                                            Select From Existing
+                                        </button>
+                                        <span class="text-[11px] text-slate-500">{{ $registerableUsers->count() }} existing available</span>
                                     </div>
-                                    <p class="text-xs text-slate-500">Locked-deck events register the player and Beys 1-3 in one step.</p>
-                                    @if ($errors->has('nickname') || $errors->has('selected_nicknames') || $errors->has('deck_bey1') || $errors->has('deck_bey2') || $errors->has('deck_bey3'))
+                                    @if ($hasLockedDeckParticipantRegistrationErrors)
                                         <p class="text-xs text-rose-300">
-                                            {{ $errors->first('nickname') ?: $errors->first('selected_nicknames') ?: $errors->first('deck_bey1') ?: $errors->first('deck_bey2') ?: $errors->first('deck_bey3') }}
+                                            {{ $errors->first('nickname') ?: $errors->first('selected_nicknames') ?: $errors->first('selected_nicknames.*') ?: $errors->first('deck_bey1') ?: $errors->first('deck_bey2') ?: $errors->first('deck_bey3') }}
                                         </p>
                                     @endif
-                                    <button class="type-label w-fit border border-amber-500/70 bg-amber-500/10 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-500/20">Add Participant</button>
-                                </form>
+                                </div>
                             @else
                                 <div class="mt-2.5 grid gap-2 border border-slate-800/80 bg-slate-950/55 p-3">
                                     <p class="text-[11px] text-slate-400">Use the same multi-add flow as Overview to pull registered users or create new nicknames before the bracket starts.</p>
@@ -743,6 +806,21 @@
                             'registrationPanel' => 'workspace',
                             'showRegistrationModal' => $showWorkspaceRegisterModal,
                         ])
+                    @else
+                        @include('dashboard.partials.locked-deck-participant-modal', [
+                            'registrationEvent' => $selectedEvent,
+                            'registerableUsers' => $registerableUsers,
+                            'mode' => 'new',
+                            'modalId' => 'locked-deck-new-player',
+                            'showModal' => $showLockedDeckNewParticipantModal,
+                        ])
+                        @include('dashboard.partials.locked-deck-participant-modal', [
+                            'registrationEvent' => $selectedEvent,
+                            'registerableUsers' => $registerableUsers,
+                            'mode' => 'existing',
+                            'modalId' => 'locked-deck-existing-player',
+                            'showModal' => $showLockedDeckExistingParticipantModal,
+                        ])
                     @endif
                     @include('dashboard.partials.participants-modal', [
                         'participantEvent' => $selectedEvent,
@@ -770,14 +848,14 @@
             </div>
 
             @else
-            <div class="grid h-full gap-3 xl:grid-cols-[minmax(0,1.16fr)_19rem]">
+            <div class="grid h-full gap-3 xl:grid-cols-[minmax(0,1fr)_16.5rem]">
                 <article class="min-h-0 overflow-y-auto no-scrollbar border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-4">
                     <div class="flex items-center justify-between gap-2">
                         <div>
                             <p class="type-kicker text-[10px] text-cyan-300/75">Leaderboard</p>
                             <h3 class="type-headline mt-1 text-xl text-cyan-100">Players</h3>
                         </div>
-                        <span class="type-label text-[10px] text-slate-500">{{ $leaderboard->count() }} ranked</span>
+                        <span class="type-label text-[10px] text-slate-500">{{ $leaderboard->count() }} total</span>
                     </div>
 
                     <div class="mt-4 overflow-x-auto">
@@ -793,9 +871,25 @@
                             </thead>
                             <tbody>
                                 @forelse ($leaderboard as $row)
-                                    <tr class="border-b border-slate-900">
-                                        <td class="px-3 py-2 text-amber-200">#{{ $row->rank }}</td>
-                                        <td class="px-3 py-2">{{ $row->nickname }}</td>
+                                    <tr class="border-b border-slate-900 {{ ($row->is_ranked ?? false) ? '' : 'bg-slate-950/25' }}">
+                                        <td class="px-3 py-2 text-amber-200">
+                                            @if (($row->is_ranked ?? false) && $row->rank)
+                                                #{{ $row->rank }}
+                                            @else
+                                                <span class="text-slate-500">-</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            <div class="min-w-0">
+                                                <p class="truncate text-slate-100">{{ $row->nickname }}</p>
+                                                <p class="mt-0.5 text-[11px] text-slate-500">
+                                                    {{ ($row->is_ranked ?? false) ? 'ranked player' : 'no results yet' }}
+                                                    @if (property_exists($row, 'is_claimed') && ! $row->is_claimed)
+                                                        - auto account
+                                                    @endif
+                                                </p>
+                                            </div>
+                                        </td>
                                         <td class="px-3 py-2 font-semibold text-amber-100">{{ $row->points }}</td>
                                         <td class="px-3 py-2 text-slate-300">{{ $row->events_played }}</td>
                                         <td class="px-3 py-2 text-slate-300">{{ $row->first_places }}</td>
@@ -810,43 +904,50 @@
                     </div>
                 </article>
 
-                <div class="grid min-h-0 gap-3">
-                    <article class="min-h-0 overflow-y-auto no-scrollbar border border-amber-400/30 bg-[linear-gradient(160deg,rgba(251,191,36,0.08)_0%,rgba(2,6,23,0.92)_100%)] p-4">
-                        <div class="flex items-center justify-between gap-2">
-                            <p class="type-title text-sm text-amber-100">All Players</p>
-                            <span class="type-label text-[10px] text-slate-500">{{ $players->count() }} total</span>
-                        </div>
-                        <div class="mt-3 space-y-2">
-                            @forelse ($players as $player)
-                                <div class="border border-slate-800/80 bg-slate-950/65 px-3 py-2 text-sm">
-                                    <p class="text-slate-100">{{ $player->user->nickname }}</p>
-                                    <p class="text-xs text-slate-400">
-                                        player_id: {{ $player->id }}
-                                        @if (! $player->user->is_claimed)
-                                            - auto account
-                                        @endif
-                                    </p>
-                                </div>
-                            @empty
-                                <p class="type-body text-sm text-slate-400">No players yet.</p>
-                            @endforelse
-                        </div>
-                    </article>
-
+                <div class="grid min-h-0 content-start gap-3">
                     <article class="border border-fuchsia-300/35 bg-[linear-gradient(160deg,rgba(112,26,117,0.16)_0%,rgba(2,6,23,0.92)_100%)] p-4">
-                        <p class="type-title text-sm text-fuchsia-100">No Results Yet</p>
-                        @if ($playersWithoutResults->isNotEmpty())
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="type-title text-sm text-fuchsia-100">Register Player</p>
+                            @if ($playerRegistrationEvent)
+                                <span class="type-label text-[10px] text-slate-500">{{ $registerableUsers->count() }} available</span>
+                            @endif
+                        </div>
+                        @if ($playerRegistrationEvent)
+                            <p class="mt-2 text-sm text-slate-300">Open registration for {{ $playerRegistrationEvent->title }}.</p>
+                            <p class="mt-1 text-[11px] text-slate-500">
+                                {{ $playerRegistrationEvent->date->format('d M Y') }}
+                                @if ($playerRegistrationEvent->eventType)
+                                    - {{ $playerRegistrationEvent->eventType->name }}
+                                @endif
+                            </p>
                             <div class="mt-3 flex flex-wrap gap-2">
-                                @foreach ($playersWithoutResults as $player)
-                                    <span class="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs">{{ $player->user->nickname }}</span>
-                                @endforeach
+                                @if ($playerRegistrationEvent->usesLockedDecks())
+                                    <a href="{{ route('dashboard', ['panel' => 'workspace']) }}" class="type-label border border-amber-400/70 bg-amber-400/12 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
+                                        Open Workspace
+                                    </a>
+                                @else
+                                    <button type="button" data-register-modal-open class="type-label border border-amber-400/70 bg-amber-400/12 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
+                                        Register Player
+                                    </button>
+                                @endif
                             </div>
                         @else
-                            <p class="type-body mt-3 text-sm text-slate-400">All tracked players already have results.</p>
+                            <p class="type-body mt-3 text-sm text-slate-400">No upcoming event is currently open for player registration.</p>
+                            <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label mt-3 inline-flex border border-slate-700 px-3 py-1.5 text-[9px] text-slate-100 transition hover:border-amber-400 hover:text-amber-200">
+                                Go To Events
+                            </a>
                         @endif
                     </article>
                 </div>
             </div>
+
+            @if ($playerRegistrationEvent && ! $playerRegistrationEvent->usesLockedDecks())
+                @include('dashboard.partials.register-participants-modal', [
+                    'registrationEvent' => $playerRegistrationEvent,
+                    'registrationPanel' => 'players',
+                    'showRegistrationModal' => $showPlayersRegisterModal,
+                ])
+            @endif
             @endif
             </section>
         </section>

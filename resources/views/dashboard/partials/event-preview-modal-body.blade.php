@@ -28,6 +28,11 @@
         && $singleElimRoundCount === 0
         && $swissRoundCount >= $scheduledSwissRounds
         && $swissRounds->isNotEmpty();
+    $thirdPlaceRound = $eliminationRounds->last();
+    $hasThirdPlaceBracket = $thirdPlaceRound && str_contains(strtolower((string) ($thirdPlaceRound->label ?? '')), '3rd place');
+    $thirdPlaceMatch = $hasThirdPlaceBracket
+        ? $thirdPlaceRound->matches->sortBy('match_number')->values()->get(1)
+        : null;
     $nextSwissRoundNumber = $swissRoundCount + 1;
     $swissWaitingTitle = $swissRounds->isEmpty() ? 'Round 1' : 'Round '.$nextSwissRoundNumber;
     $swissWaitingDetail = match (true) {
@@ -57,7 +62,7 @@
         $pendingMatchCount > 0 => 'Record the remaining results to unlock the next stage.',
         $roundCount === 0 => 'Registration is ready, but no bracket rounds exist yet.',
         $event->usesSwissBracket() && $singleElimRoundCount === 0 => 'Swiss is complete. Generate top cut when ready.',
-        default => 'The next elimination column appears after the current one is completed.',
+        default => 'The next elimination slot appears as soon as a feeder match produces a winner.',
     };
     $eliminationBaseMatchCount = max(1, (int) ($eliminationRounds->first()?->matches->count() ?? 0));
     $eliminationGridRows = max(1, ($eliminationBaseMatchCount * 2) - 1);
@@ -101,7 +106,7 @@
                         ['label' => 'Pending', 'value' => $pendingMatchCount, 'tone' => $pendingMatchCount > 0 ? 'text-amber-200' : 'text-emerald-200'],
                         ['label' => 'Done', 'value' => $completedMatchCount, 'tone' => 'text-amber-200'],
                         ['label' => 'Swiss', 'value' => $swissRoundCount, 'tone' => 'text-amber-200'],
-                        ['label' => 'Deck Gate', 'value' => $missingDeckCount, 'tone' => $missingDeckCount > 0 ? 'text-rose-200' : 'text-emerald-200'],
+                        ['label' => 'Lock Deck', 'value' => $event->usesLockedDecks() ? 'True' : 'False', 'tone' => $event->usesLockedDecks() ? 'text-emerald-200' : 'text-slate-300'],
                     ] as $metric)
                         <div class="border border-slate-800 bg-slate-900/70 px-2 py-1.5">
                             <p class="text-[9px] uppercase tracking-[0.14em] text-slate-500">{{ $metric['label'] }}</p>
@@ -127,12 +132,8 @@
                 </div>
 
                 <div class="mt-3 border-t border-slate-800 pt-2">
-                    <p class="text-[9px] uppercase tracking-[0.16em] text-slate-500">Deck Gate</p>
-                    <p class="mt-1 text-[11px] leading-snug text-slate-400">
-                        {{ $deckTargetCount > 0
-                            ? ($deckTargetCount - $missingDeckCount).' ready / '.$missingDeckCount.' missing'
-                            : 'No deck registration gate active.' }}
-                    </p>
+                    <p class="text-[9px] uppercase tracking-[0.16em] text-slate-500">Lock Deck</p>
+                    <p class="mt-1 text-[11px] leading-snug text-slate-400">{{ $event->usesLockedDecks() ? 'True' : 'False' }}</p>
                 </div>
             </aside>
         </div>
@@ -189,9 +190,9 @@
                     </div>
 
                     <div class="mt-2 overflow-x-auto pb-1">
-                        <div class="flex min-w-max items-start gap-2">
+                        <div class="flex min-w-max items-start gap-3">
                             @foreach ($swissRounds as $round)
-                                <section class="w-[13.25rem] shrink-0 border border-slate-800/80 bg-slate-950/82">
+                                <section class="w-[14.25rem] shrink-0 border border-slate-800/80 bg-slate-950/82">
                                     <div class="border-b border-slate-800/80 bg-slate-900/80 px-2.5 py-1.5">
                                         <div class="flex items-center justify-between gap-2">
                                             <p class="text-[11px] font-semibold text-slate-100">{{ $round->label ?: 'Round '.$round->round_number }}</p>
@@ -199,7 +200,7 @@
                                         </div>
                                     </div>
 
-                                    <div class="space-y-1 p-1.25">
+                                    <div class="space-y-2 p-2">
                                         @foreach ($round->matches->sortBy('match_number')->values() as $match)
                                             @include('dashboard.partials.event-preview-match-card', [
                                                 'match' => $match,
@@ -211,7 +212,7 @@
                             @endforeach
 
                             @if ($showSwissWaitingColumn)
-                                <section class="flex min-h-[14rem] w-[13.25rem] shrink-0 flex-col border border-dashed border-slate-700/80 bg-slate-950/55">
+                                <section class="flex min-h-[14rem] w-[14.25rem] shrink-0 flex-col border border-dashed border-slate-700/80 bg-slate-950/55">
                                     <div class="border-b border-dashed border-slate-700/80 bg-slate-900/65 px-2.5 py-1.5">
                                         <div class="flex items-center justify-between gap-2">
                                             <p class="text-[11px] font-semibold text-slate-300">{{ $swissWaitingTitle }}</p>
@@ -228,7 +229,7 @@
                                     </div>
                                 </section>
                             @elseif ($showTopCutWaitingColumn)
-                                <section class="flex min-h-[14rem] w-[13.25rem] shrink-0 flex-col border border-dashed border-amber-500/45 bg-amber-500/[0.05]">
+                                <section class="flex min-h-[14rem] w-[14.25rem] shrink-0 flex-col border border-dashed border-amber-500/45 bg-amber-500/[0.05]">
                                     <div class="border-b border-dashed border-amber-500/35 bg-slate-900/65 px-2.5 py-1.5">
                                         <div class="flex items-center justify-between gap-2">
                                             <p class="text-[11px] font-semibold text-amber-100">Top Cut</p>
@@ -240,7 +241,7 @@
                                         <div class="space-y-1.5">
                                             <p class="text-[10px] uppercase tracking-[0.16em] text-amber-200/80">Swiss Complete</p>
                                             <p class="text-sm font-semibold leading-tight text-slate-100">{{ $missingDeckCount > 0 ? 'Deck registration is still blocking top cut generation.' : 'Waiting for top cut generation.' }}</p>
-                                            <p class="text-[11px] text-slate-500">{{ $missingDeckCount > 0 ? 'Finish the deck gate, then generate elimination.' : 'The elimination bracket appears here next.' }}</p>
+                                            <p class="text-[11px] text-slate-500">{{ $missingDeckCount > 0 ? 'Finish deck registration, then generate elimination.' : 'The elimination bracket appears here next.' }}</p>
                                         </div>
                                     </div>
                                 </section>
@@ -288,6 +289,9 @@
                                         $roundIndex = $loop->index;
                                         $step = 2 ** $roundIndex;
                                         $sortedMatches = $round->matches->sortBy('match_number')->values();
+                                        if ($hasThirdPlaceBracket && $loop->last) {
+                                            $sortedMatches = $sortedMatches->take(1)->values();
+                                        }
                                         $hasNextRound = $roundIndex < ($eliminationRounds->count() - 1);
                                     @endphp
 
@@ -311,6 +315,21 @@
                                 @endforeach
                             </div>
                         </div>
+
+                        @if ($thirdPlaceMatch)
+                            <div class="mt-4 border-t border-slate-800/80 pt-3">
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-100">Battle for 3rd Place</p>
+                                    <span class="rounded border {{ $thirdPlaceMatch->status === 'completed' ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' : 'border-amber-500/40 bg-amber-500/10 text-amber-200' }} px-1.5 py-0.5 text-[8px] uppercase tracking-[0.14em]">{{ $thirdPlaceMatch->status }}</span>
+                                </div>
+                                <div class="max-w-[13.25rem]">
+                                    @include('dashboard.partials.event-preview-match-card', [
+                                        'match' => $thirdPlaceMatch,
+                                        'layout' => 'default',
+                                    ])
+                                </div>
+                            </div>
+                        @endif
                     </div>
                 </section>
             @elseif (! $event->usesSwissBracket())

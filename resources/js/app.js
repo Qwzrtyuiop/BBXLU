@@ -438,11 +438,42 @@ document.addEventListener('DOMContentLoaded', () => {
     if (deckModal) {
         const openButtons = document.querySelectorAll('[data-deck-modal-open]');
         const closeButtons = deckModal.querySelectorAll('[data-deck-modal-close]');
+        const deckScrollBody = deckModal.querySelector('[data-deck-scroll-body]');
+        const deckBulkForm = deckModal.querySelector('[data-deck-bulk-form]');
+        const deckBulkInputs = deckModal.querySelector('[data-deck-bulk-inputs]');
+        const deckBulkSubmitButton = deckModal.querySelector('[data-deck-bulk-submit]');
+
+        const focusDeckRow = () => {
+            const playerId = deckModal.dataset.deckFocusPlayerId;
+            if (!playerId || !deckScrollBody) {
+                return;
+            }
+
+            const targetRow = deckModal.querySelector(`[data-deck-player-row="${playerId}"]`);
+            if (!targetRow) {
+                return;
+            }
+
+            targetRow.scrollIntoView({ block: 'center', behavior: 'auto' });
+        };
+
+        const appendBulkInput = (name, value) => {
+            if (!deckBulkInputs) {
+                return;
+            }
+
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value;
+            deckBulkInputs.appendChild(input);
+        };
 
         const openDeckModal = () => {
             deckModal.classList.remove('hidden');
             deckModal.classList.add('flex');
             document.body.classList.add('overflow-hidden');
+            window.requestAnimationFrame(focusDeckRow);
         };
 
         const closeDeckModal = () => {
@@ -459,10 +490,30 @@ document.addEventListener('DOMContentLoaded', () => {
             button.addEventListener('click', closeDeckModal);
         });
 
-        deckModal.addEventListener('click', (event) => {
-            if (event.target === deckModal) {
-                closeDeckModal();
+        deckBulkSubmitButton?.addEventListener('click', () => {
+            if (!deckBulkForm || !deckBulkInputs) {
+                return;
             }
+
+            deckBulkForm.setAttribute('action', deckModal.dataset.deckBulkAction || '');
+            deckBulkInputs.innerHTML = '';
+
+            deckModal.querySelectorAll('[data-deck-player-row]').forEach((row) => {
+                const playerId = row.dataset.deckPlayerRow;
+                if (!playerId) {
+                    return;
+                }
+
+                const bey1 = row.querySelector('input[name="deck_bey1"]');
+                const bey2 = row.querySelector('input[name="deck_bey2"]');
+                const bey3 = row.querySelector('input[name="deck_bey3"]');
+
+                appendBulkInput(`decks[${playerId}][deck_bey1]`, bey1?.value || '');
+                appendBulkInput(`decks[${playerId}][deck_bey2]`, bey2?.value || '');
+                appendBulkInput(`decks[${playerId}][deck_bey3]`, bey3?.value || '');
+            });
+
+            deckBulkForm.submit();
         });
 
         if (deckModal.dataset.deckOpenOnLoad === 'true') {
@@ -511,6 +562,62 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event.key === 'Escape' && !participantsModal.classList.contains('hidden')) {
                 closeParticipantsModal();
             }
+        });
+    }
+
+    const lockedParticipantModals = document.querySelectorAll('[data-locked-participant-modal]');
+    if (lockedParticipantModals.length > 0) {
+        const openModal = (modal) => {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+        };
+
+        const closeModal = (modal) => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            if (!Array.from(lockedParticipantModals).some((item) => !item.classList.contains('hidden'))) {
+                document.body.classList.remove('overflow-hidden');
+            }
+        };
+
+        document.querySelectorAll('[data-locked-participant-open]').forEach((button) => {
+            button.addEventListener('click', () => {
+                const targetId = button.dataset.lockedParticipantOpen;
+                const modal = Array.from(lockedParticipantModals).find((item) => item.dataset.lockedParticipantModal === targetId);
+                if (modal) {
+                    openModal(modal);
+                }
+            });
+        });
+
+        lockedParticipantModals.forEach((modal) => {
+            modal.querySelectorAll('[data-locked-participant-close]').forEach((button) => {
+                button.addEventListener('click', () => closeModal(modal));
+            });
+
+            modal.addEventListener('click', (event) => {
+                if (event.target === modal) {
+                    closeModal(modal);
+                }
+            });
+
+            if (modal.dataset.lockedParticipantOpenOnLoad === 'true') {
+                openModal(modal);
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') {
+                return;
+            }
+
+            lockedParticipantModals.forEach((modal) => {
+                if (!modal.classList.contains('hidden')) {
+                    closeModal(modal);
+                }
+            });
         });
     }
 
@@ -629,6 +736,60 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
                 closeModal();
+            }
+        });
+    }
+
+    const liveDetailModal = document.querySelector('[data-live-detail-modal]');
+    if (liveDetailModal) {
+        const openButtons = document.querySelectorAll('[data-live-detail-open]');
+        const closeButtons = liveDetailModal.querySelectorAll('[data-live-detail-close]');
+        const liveDetailTitle = liveDetailModal.querySelector('[data-live-detail-title]');
+        const liveDetailBody = liveDetailModal.querySelector('[data-live-detail-body]');
+
+        const openLiveDetailModal = (button) => {
+            const templateId = button.dataset.liveDetailTemplateId;
+            const template = templateId ? document.getElementById(templateId) : null;
+            if (!template || !liveDetailBody) {
+                return;
+            }
+
+            if (liveDetailTitle) {
+                liveDetailTitle.textContent = button.dataset.liveDetailTitle || 'Details';
+            }
+
+            liveDetailBody.innerHTML = template.innerHTML;
+            liveDetailModal.classList.remove('hidden');
+            liveDetailModal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+        };
+
+        const closeLiveDetailModal = () => {
+            liveDetailModal.classList.add('hidden');
+            liveDetailModal.classList.remove('flex');
+            if (liveDetailBody) {
+                liveDetailBody.innerHTML = '';
+            }
+            document.body.classList.remove('overflow-hidden');
+        };
+
+        openButtons.forEach((button) => {
+            button.addEventListener('click', () => openLiveDetailModal(button));
+        });
+
+        closeButtons.forEach((button) => {
+            button.addEventListener('click', closeLiveDetailModal);
+        });
+
+        liveDetailModal.addEventListener('click', (event) => {
+            if (event.target === liveDetailModal) {
+                closeLiveDetailModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !liveDetailModal.classList.contains('hidden')) {
+                closeLiveDetailModal();
             }
         });
     }

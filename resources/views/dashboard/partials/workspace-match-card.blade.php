@@ -5,8 +5,11 @@
     $roundLabel = $round->label ?: ucfirst(str_replace('_', ' ', $round->stage)).' Round '.$round->round_number;
     $matchTemplateId = 'workspace-match-template-'.$match->id;
     $isCompleted = $match->status === 'completed';
+    $hasPlaceholderOpponent = ! $match->is_bye && ! $match->player2_id;
     $player1Name = $match->player1->user->nickname;
-    $player2Name = $match->player2?->user->nickname ?? 'BYE';
+    $player2Name = $match->is_bye
+        ? 'BYE'
+        : ($match->player2_id ? $match->player2->user->nickname : '- opponent');
     $player1Won = $match->winner_id === $match->player1_id;
     $player2Won = $match->winner_id === $match->player2_id;
     $player1Metric = $match->is_bye
@@ -20,13 +23,16 @@
         : ($isCompleted ? 'border-cyan-500/35 bg-cyan-500/[0.04]' : 'border-slate-800/90 bg-slate-950/80');
     $stateTextClasses = $match->is_bye
         ? 'text-emerald-300'
-        : ($isCompleted ? 'text-cyan-200' : 'text-amber-200');
+        : ($isCompleted ? 'text-cyan-200' : ($hasPlaceholderOpponent ? 'text-slate-300' : 'text-amber-200'));
     $stateLabel = $match->is_bye
         ? 'Bye'
-        : ($isCompleted ? $match->player1_score.'-'.$match->player2_score : 'Open');
+        : ($isCompleted ? $match->player1_score.'-'.$match->player2_score : ($hasPlaceholderOpponent ? 'Waiting' : 'Open'));
     $footerLabel = $match->is_bye
         ? 'auto advance'
-        : ($isCompleted ? 'winner: '.($match->winner?->user->nickname ?? 'TBD') : 'record result');
+        : ($isCompleted ? 'winner: '.($match->winner?->user->nickname ?? 'TBD') : ($hasPlaceholderOpponent ? 'waiting for opponent' : 'record result'));
+    $joinedCardClasses = 'overflow-hidden rounded border border-slate-800/90 bg-slate-900/65';
+    $winnerRowClasses = 'bg-cyan-400/[0.08] font-semibold text-slate-50';
+    $winnerMetricClasses = 'text-cyan-100';
     $gridColumn = $gridColumn ?? null;
     $gridRowStart = $gridRowStart ?? null;
     $bracketConnectorHeightRem = $bracketConnectorHeightRem ?? 0;
@@ -46,16 +52,16 @@
             data-match-template-id="{{ $matchTemplateId }}"
             data-match-modal-title="{{ $matchLabel }}"
             data-match-modal-subtitle="{{ $roundLabel }}"
-            class="block w-full border px-2 py-1.5 text-left transition hover:border-cyan-400/55 hover:bg-slate-900/90 {{ $cardBorderClasses }}"
+            class="block w-full px-0 py-1 text-left transition hover:opacity-95 focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400/55"
         >
-            <div class="grid gap-1">
-                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 rounded border px-2 py-1 text-[10px] leading-tight {{ $player1Won ? 'border-amber-400/40 bg-amber-500/14 font-semibold text-slate-50' : 'border-slate-800/90 bg-slate-900/70 text-slate-200' }}">
+            <div class="{{ $joinedCardClasses }}">
+                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 px-2.5 py-1.5 text-[10px] leading-tight {{ $player1Won ? $winnerRowClasses : 'text-slate-200' }}">
                     <span class="truncate">{{ $player1Name }}</span>
-                    <span class="text-right text-[9px] font-semibold {{ $player1Won ? 'text-amber-100' : 'text-slate-400' }}">{{ $player1Metric }}</span>
+                    <span class="text-right text-[9px] font-semibold {{ $player1Won ? $winnerMetricClasses : 'text-slate-400' }}">{{ $player1Metric }}</span>
                 </div>
-                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 rounded border px-2 py-1 text-[10px] leading-tight {{ $player2Won ? 'border-amber-400/40 bg-amber-500/14 font-semibold text-slate-50' : 'border-slate-800/90 bg-slate-900/70 text-slate-300' }}">
+                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 border-t border-slate-800/90 px-2.5 py-1.5 text-[10px] leading-tight {{ $player2Won ? $winnerRowClasses : 'text-slate-300' }}">
                     <span class="truncate">{{ $player2Name }}</span>
-                    <span class="text-right text-[9px] font-semibold {{ $player2Won ? 'text-amber-100' : 'text-slate-400' }}">{{ $player2Metric }}</span>
+                    <span class="text-right text-[9px] font-semibold {{ $player2Won ? $winnerMetricClasses : 'text-slate-400' }}">{{ $player2Metric }}</span>
                 </div>
             </div>
         </button>
@@ -102,14 +108,14 @@
                 ></span>
             @endif
 
-            <div class="grid gap-1">
-                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 rounded border px-2 py-1 text-[10px] leading-tight {{ $player1Won ? 'border-amber-400/40 bg-amber-500/14 font-semibold text-slate-50' : 'border-slate-800/90 bg-slate-900/70 text-slate-200' }}">
+            <div class="{{ $joinedCardClasses }}">
+                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 px-2 py-1 text-[10px] leading-tight {{ $player1Won ? $winnerRowClasses : 'text-slate-200' }}">
                     <span class="truncate">{{ $player1Name }}</span>
-                    <span class="text-right text-[9px] font-semibold {{ $player1Won ? 'text-amber-100' : 'text-slate-400' }}">{{ $player1Metric }}</span>
+                    <span class="text-right text-[9px] font-semibold {{ $player1Won ? $winnerMetricClasses : 'text-slate-400' }}">{{ $player1Metric }}</span>
                 </div>
-                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 rounded border px-2 py-1 text-[10px] leading-tight {{ $player2Won ? 'border-amber-400/40 bg-amber-500/14 font-semibold text-slate-50' : 'border-slate-800/90 bg-slate-900/70 text-slate-300' }}">
+                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 border-t border-slate-800/90 px-2 py-1 text-[10px] leading-tight {{ $player2Won ? $winnerRowClasses : 'text-slate-300' }}">
                     <span class="truncate">{{ $player2Name }}</span>
-                    <span class="text-right text-[9px] font-semibold {{ $player2Won ? 'text-amber-100' : 'text-slate-400' }}">{{ $player2Metric }}</span>
+                    <span class="text-right text-[9px] font-semibold {{ $player2Won ? $winnerMetricClasses : 'text-slate-400' }}">{{ $player2Metric }}</span>
                 </div>
             </div>
         </button>
@@ -162,7 +168,7 @@
             $player1Participant = $participantDecks->get($match->player1_id);
             $player2Participant = $match->player2_id ? $participantDecks->get($match->player2_id) : null;
             $usesRegisteredDecks = $selectedEvent->usesLockedDecks() || $match->stage === 'single_elim';
-            $matchWinThreshold = $selectedEvent->battleWinThresholdForStage($round->stage, $round->matches->count());
+            $matchWinThreshold = $selectedEvent->battleWinThresholdForMatch($match, $round, $round->stage, $round->matches->count());
             $battleSlotCount = $selectedEvent->maxBattleSlotsForThreshold($matchWinThreshold);
             $isReopenedMatch = (int) old('match_id', 0) === $match->id;
             $formValue = fn (string $key, mixed $default = null) => $isReopenedMatch ? old($key, $default) : $default;
@@ -186,10 +192,12 @@
                 <div class="min-w-0">
                     <p class="font-medium text-slate-100">
                         {{ $player1Name }}
-                        @if ($match->player2)
+                        @if ($match->player2_id)
                             vs {{ $player2Name }}
-                        @else
+                        @elseif ($match->is_bye)
                             vs BYE
+                        @else
+                            vs - opponent
                         @endif
                     </p>
                     <p class="mt-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">
@@ -242,6 +250,21 @@
                             <p class="mt-1 text-sm text-slate-300">{{ collect($deckInfo['values'])->filter()->implode(', ') ?: 'Not recorded' }}</p>
                         </div>
                     @endforeach
+                </div>
+            @elseif ($hasPlaceholderOpponent)
+                <div class="grid gap-3 xl:grid-cols-2">
+                    <div class="border border-slate-800 bg-slate-900/60 px-3 py-3">
+                        <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Waiting</p>
+                        <p class="mt-1 text-sm text-slate-100">This bracket slot is ready for {{ $player1Name }}.</p>
+                        <p class="mt-2 text-[11px] text-slate-500">The opponent appears here as soon as the other feeder match is decided.</p>
+                    </div>
+                    <div class="border border-slate-800 bg-slate-900/60 px-3 py-3">
+                        <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Sources</p>
+                        <div class="mt-2 space-y-1.5 text-[11px] text-slate-300">
+                            <p>Source A: {{ $match->sourceMatch1?->match_number ? 'Match '.$match->sourceMatch1->match_number : 'Pending feeder' }}</p>
+                            <p>Source B: {{ $match->sourceMatch2?->match_number ? 'Match '.$match->sourceMatch2->match_number : '- opponent' }}</p>
+                        </div>
+                    </div>
                 </div>
             @else
                 <form action="{{ route('events.matches.store', $selectedEvent) }}" method="POST" class="grid gap-4">

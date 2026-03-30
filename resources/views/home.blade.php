@@ -170,6 +170,13 @@
                 </div>
 
                 @if ($ongoingTournament)
+                    @php
+                        $currentLiveRound = $ongoingTournamentPreview['currentRound'] ?? null;
+                        $currentLiveMatch = $ongoingTournamentPreview['featuredMatch'] ?? null;
+                        $currentLiveRoundLabel = $currentLiveRound
+                            ? ($currentLiveRound->label ?: ucfirst(str_replace('_', ' ', $currentLiveRound->stage)).' Round '.$currentLiveRound->round_number)
+                            : 'Waiting for Round 1';
+                    @endphp
                     <div class="mt-1">
                         <p class="type-kicker text-[10px] text-emerald-300/75">Now Active</p>
                         <p class="type-title mt-1 text-sm leading-snug text-slate-100 break-words">{{ $ongoingTournament->title }}</p>
@@ -185,15 +192,32 @@
 
                     <div class="mt-3 border border-emerald-400/20 bg-slate-950/45 px-3 py-2">
                         <p class="type-label text-[10px] text-emerald-200">{{ $ongoingTournament->bracketLabel() }}</p>
-                        <p class="type-body mt-1 text-xs text-slate-400">
-                            Bracket handling is managed inside BBXLU for this event.
-                        </p>
+                        <p class="type-body mt-1 text-xs text-slate-400">{{ $currentLiveRoundLabel }}</p>
                     </div>
+
+                    <div class="mt-3 border border-slate-800/80 bg-slate-950/55 px-3 py-2">
+                        <p class="type-kicker text-[10px] text-slate-500">Live Focus</p>
+                        @if ($currentLiveMatch)
+                            <p class="type-body mt-1 text-xs leading-snug text-slate-200 break-words">
+                                {{ $currentLiveMatch->player1->user->nickname }} vs {{ $currentLiveMatch->player2?->user->nickname ?? 'BYE' }}
+                            </p>
+                        @else
+                            <p class="type-body mt-1 text-xs leading-snug text-slate-400">No unresolved match right now.</p>
+                        @endif
+                    </div>
+
+                    <a href="{{ route('live.viewer.event', $ongoingTournament) }}" class="type-label mt-3 inline-flex w-full items-center justify-center border border-emerald-400/60 bg-emerald-400/10 px-3 py-2 text-[10px] text-emerald-100 transition hover:bg-emerald-400/18">
+                        Open Live Viewer
+                    </a>
                 @else
                     <div class="mt-1">
                         <p class="type-title text-sm text-slate-100">No Ongoing Event</p>
                         <p class="type-body mt-1 text-xs text-slate-500">Set an event as active in the dashboard and it will appear here.</p>
                     </div>
+
+                    <a href="{{ route('live.viewer') }}" class="type-label mt-3 inline-flex w-full items-center justify-center border border-slate-700 px-3 py-2 text-[10px] text-slate-100 transition hover:border-cyan-400 hover:text-cyan-200">
+                        Open Live Viewer
+                    </a>
                 @endif
             </div>
         </div>

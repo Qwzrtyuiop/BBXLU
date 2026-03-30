@@ -128,6 +128,60 @@ class Event extends Model
         return $this->battleWinThreshold();
     }
 
+    public function isPlacementFinalRoundLabel(?string $label): bool
+    {
+        $normalized = strtolower((string) ($label ?? ''));
+
+        return str_contains($normalized, '3rd place');
+    }
+
+    public function isChampionshipMatch(?EventMatch $match = null, ?EventRound $round = null, ?int $roundMatchCount = null): bool
+    {
+        $round ??= $match?->relationLoaded('round') ? $match->round : null;
+        $roundMatchCount ??= $round
+            ? ($round->relationLoaded('matches') ? $round->matches->count() : $round->matches()->count())
+            : null;
+
+        $matchNumber = (int) ($match?->match_number ?? 1);
+
+        if ($matchNumber !== 1) {
+            return false;
+        }
+
+        if ($roundMatchCount === 1) {
+            return true;
+        }
+
+        return $roundMatchCount === 2 && $this->isPlacementFinalRoundLabel($round?->label);
+    }
+
+    public function isThirdPlaceMatch(?EventMatch $match = null, ?EventRound $round = null, ?int $roundMatchCount = null): bool
+    {
+        $round ??= $match?->relationLoaded('round') ? $match->round : null;
+        $roundMatchCount ??= $round
+            ? ($round->relationLoaded('matches') ? $round->matches->count() : $round->matches()->count())
+            : null;
+
+        return (int) ($match?->match_number ?? 0) === 2
+            && $roundMatchCount === 2
+            && $this->isPlacementFinalRoundLabel($round?->label);
+    }
+
+    public function battleWinThresholdForMatch(?EventMatch $match = null, ?EventRound $round = null, ?string $stage = null, ?int $roundMatchCount = null): int
+    {
+        $stage ??= $match?->stage ?? $round?->stage;
+
+        if (
+            $this->usesSwissBracket()
+            && $stage === 'single_elim'
+            && $this->isChampionshipMatch($match, $round, $roundMatchCount)
+        ) {
+            return 7;
+        }
+
+        return $this->battleWinThreshold();
+    }
+
     public function maxBattleSlotsForThreshold(int $threshold): int
     {
         return max(7, ($threshold * 2) - 1);

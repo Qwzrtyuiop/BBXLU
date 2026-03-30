@@ -1,9 +1,15 @@
+@props([
+    'title' => 'BBXLU',
+    'fullBleed' => false,
+    'hideFooter' => false,
+])
+
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ $title ?? 'BBXLU' }}</title>
+    <title>{{ $title }}</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=oxanium:400,500,600,700,800&family=exo-2:400,500,600,700&family=orbitron:500,700&family=rajdhani:500,700" rel="stylesheet" />
     @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -78,19 +84,21 @@
         </div>
     </header>
 
-    <main class="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <main class="{{ $fullBleed ? 'w-full px-0 py-0' : 'mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8' }}">
         {{ $slot }}
     </main>
 
-    <footer class="border-t border-slate-800/70 bg-slate-950/70">
-        <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-3 px-4 py-4 text-xs text-slate-400 sm:justify-between sm:px-6 lg:px-8">
-            <p class="text-center sm:text-left">&copy; 2026 La Union Bladers +</p>
-            <div class="flex items-center gap-2">
-                <img src="{{ asset('images/agoo.png') }}" alt="Agoo icon" title="Agoo Bladers" class="h-6 w-6 object-contain" />
-                <img src="{{ asset('images/kimat.png') }}" alt="Kimat icon" title="Doc Kimat" class="h-6 w-6 object-contain" />
-                <img src="{{ asset('images/lu.png') }}" alt="La Union icon" title="La Union Bladers" class="h-6 w-6 object-contain" />
+    @unless ($hideFooter)
+        <footer class="border-t border-slate-800/70 bg-slate-950/70">
+            <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-3 px-4 py-4 text-xs text-slate-400 sm:justify-between sm:px-6 lg:px-8">
+                <p class="text-center sm:text-left">&copy; 2026 La Union Bladers +</p>
+                <div class="flex items-center gap-2">
+                    <img src="{{ asset('images/agoo.png') }}" alt="Agoo icon" title="Agoo Bladers" class="h-6 w-6 object-contain" />
+                    <img src="{{ asset('images/kimat.png') }}" alt="Kimat icon" title="Doc Kimat" class="h-6 w-6 object-contain" />
+                    <img src="{{ asset('images/lu.png') }}" alt="La Union icon" title="La Union Bladers" class="h-6 w-6 object-contain" />
+                </div>
             </div>
-        </div>
-    </footer>
+        </footer>
+    @endunless
 </body>
 </html>

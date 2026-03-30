@@ -184,7 +184,8 @@ class BracketService
 
         if ($singleElimRounds->isNotEmpty()) {
             $finalRound = $singleElimRounds->last();
-            $completed = $finalRound->status === 'completed' && $finalRound->matches->count() === 1;
+            $championshipMatch = $this->championshipMatchForRound($finalRound);
+            $completed = $finalRound->status === 'completed' && (bool) $championshipMatch?->winner_id;
 
             $event->bracket_status = $completed ? 'completed' : 'in_progress';
             $event->status = $completed ? 'finished' : 'upcoming';
@@ -263,6 +264,98 @@ class BracketService
             self::STAGE_SINGLE_ELIM => $this->advanceSingleEliminationAfterRoundCompletion($round),
             default => null,
         };
+    }
+
+    public function syncSingleEliminationProgression(Event $event): ?string
+    {
+        return DB::transaction(function () use ($event): ?string {
+            $event = Event::query()
+                ->with([
+                    'participants.user',
+                    'eventParticipants.player.user',
+                    'rounds.matches.winner',
+                    'rounds.matches.player1',
+                    'rounds.matches.player2',
+                    'matches',
+                ])
+                ->findOrFail($event->id);
+
+            $singleElimRounds = $event->rounds
+                ->where('stage', self::STAGE_SINGLE_ELIM)
+                ->sortBy('round_number')
+                ->values();
+
+            if ($singleElimRounds->isEmpty()) {
+                return null;
+            }
+
+            $createdRoundCount = 0;
+            $updatedMatchCount = 0;
+            $roundsByNumber = $singleElimRounds
+                ->keyBy(fn (EventRound $round) => (int) $round->round_number);
+            $maxRoundNumber = (int) $roundsByNumber->keys()->max();
+
+            for ($roundNumber = 1; $roundNumber <= $maxRoundNumber; $roundNumber++) {
+                /** @var EventRound|null $sourceRound */
+                $sourceRound = $roundsByNumber->get($roundNumber);
+
+                if (! $sourceRound) {
+                    continue;
+                }
+
+                $sourceMatches = $sourceRound->matches
+                    ->sortBy('match_number')
+                    ->values();
+
+                if ($sourceMatches->count() <= 1) {
+                    continue;
+                }
+
+                if ($event->isPlacementFinalRoundLabel($sourceRound->label)) {
+                    continue;
+                }
+
+                $pairings = $this->buildIncrementalSingleEliminationPairings($sourceMatches);
+
+                if ($pairings->isEmpty()) {
+                    continue;
+                }
+
+                $nextRoundNumber = $roundNumber + 1;
+                $nextRoundLabel = $this->singleEliminationRoundLabel($event, $nextRoundNumber, $sourceMatches->count(), $pairings->count());
+                /** @var EventRound|null $nextRound */
+                $nextRound = $roundsByNumber->get($nextRoundNumber);
+
+                if (! $nextRound) {
+                    $nextRound = EventRound::query()->create([
+                        'event_id' => $event->id,
+                        'stage' => self::STAGE_SINGLE_ELIM,
+                        'round_number' => $nextRoundNumber,
+                        'label' => $nextRoundLabel,
+                        'status' => 'pending',
+                    ]);
+                    $createdRoundCount++;
+                    $roundsByNumber->put($nextRoundNumber, $nextRound);
+                    $maxRoundNumber = max($maxRoundNumber, $nextRoundNumber);
+                } elseif ($nextRound->label !== $nextRoundLabel) {
+                    $nextRound->forceFill(['label' => $nextRoundLabel])->save();
+                }
+
+                $updatedMatchCount += $this->syncSingleEliminationRoundMatches($event, $nextRound, $pairings);
+
+                $nextRound = $nextRound->fresh('matches.winner', 'matches.player1', 'matches.player2');
+                if ($nextRound) {
+                    $this->refreshRoundStatus($nextRound);
+                    $roundsByNumber->put($nextRoundNumber, $nextRound->fresh('matches.winner', 'matches.player1', 'matches.player2'));
+                }
+            }
+
+            $this->refreshEventStatus($event->fresh('rounds.matches'));
+
+            return ($createdRoundCount > 0 || $updatedMatchCount > 0)
+                ? 'Elimination bracket updated.'
+                : null;
+        });
     }
 
     public function regenerateAutomaticResultsAndAwards(Event $event): void
@@ -454,13 +547,13 @@ class BracketService
                 'event_id' => $event->id,
                 'stage' => 'single_elim',
                 'round_number' => 1,
-                'label' => $fromSwissCut ? 'Top Cut Round 1' : 'Elimination Round 1',
+                'label' => $this->singleEliminationRoundLabel($event, 1, 0, (int) ceil($this->nextSingleEliminationBracketSize($players->count()) / 2)),
                 'status' => 'pending',
             ]);
 
             $this->createSeededSingleEliminationMatches($event, $round, $players);
             $this->refreshRoundStatus($round->load('matches'));
-            $this->refreshEventStatus($event->fresh('rounds.matches'));
+            $this->syncSingleEliminationProgression($event);
 
             return $fromSwissCut ? 'Top cut generated.' : 'Single elimination round 1 generated.';
         }
@@ -741,14 +834,158 @@ class BracketService
         $this->createPairingMatches($event, $round, $pairings->values());
     }
 
+    private function buildIncrementalSingleEliminationPairings(Collection $sourceMatches): Collection
+    {
+        if ($sourceMatches->count() === 2) {
+            $first = $sourceMatches->get(0);
+            $second = $sourceMatches->get(1);
+            $firstWinner = $this->resolvedMatchWinner($first);
+            $secondWinner = $this->resolvedMatchWinner($second);
+            $firstLoser = $this->resolvedMatchLoser($first);
+            $secondLoser = $this->resolvedMatchLoser($second);
+
+            return collect([
+                [
+                    'player1' => $firstWinner ?? $secondWinner,
+                    'player2' => $firstWinner && $secondWinner ? $secondWinner : null,
+                    'is_bye' => false,
+                    'source_match1_id' => $first?->id,
+                    'source_match2_id' => $second?->id,
+                    'placement_type' => 'championship',
+                ],
+                [
+                    'player1' => $firstLoser ?? $secondLoser,
+                    'player2' => $firstLoser && $secondLoser ? $secondLoser : null,
+                    'is_bye' => false,
+                    'source_match1_id' => $first?->id,
+                    'source_match2_id' => $second?->id,
+                    'placement_type' => 'third_place',
+                ],
+            ])->filter(fn (array $pairing) => $pairing['player1'] instanceof Player)->values();
+        }
+
+        return $sourceMatches
+            ->chunk(2)
+            ->map(function (Collection $chunk) {
+                $chunk = $chunk->values();
+                $first = $chunk->get(0);
+                $second = $chunk->get(1);
+                $firstWinner = $this->resolvedMatchWinner($first);
+                $secondWinner = $this->resolvedMatchWinner($second);
+
+                if (! $firstWinner && ! $secondWinner) {
+                    return null;
+                }
+
+                return [
+                    'player1' => $firstWinner ?? $secondWinner,
+                    'player2' => $firstWinner && $secondWinner ? $secondWinner : null,
+                    'is_bye' => ! $second && (bool) $firstWinner,
+                    'source_match1_id' => $first?->id,
+                    'source_match2_id' => $second?->id,
+                    'placement_type' => 'standard',
+                ];
+            })
+            ->filter()
+            ->values();
+    }
+
+    private function syncSingleEliminationRoundMatches(Event $event, EventRound $round, Collection $pairings): int
+    {
+        $participantDecks = $event->eventParticipants()->get()->keyBy('player_id');
+        $updatedMatchCount = 0;
+
+        $pairings->values()->each(function (array $pairing, int $index) use ($event, $round, $pairings, $participantDecks, &$updatedMatchCount): void {
+            $player1 = $pairing['player1'] ?? null;
+            $player2 = $pairing['player2'] ?? null;
+            $isBye = (bool) ($pairing['is_bye'] ?? false);
+            $matchNumber = $index + 1;
+            $threshold = $this->singleEliminationMatchThreshold($event, $round, $matchNumber, $pairings->count());
+
+            if (! $player1 instanceof Player) {
+                return;
+            }
+
+            $player1Deck = $participantDecks->get($player1->id);
+            $player2Deck = $player2 ? $participantDecks->get($player2->id) : null;
+            $match = EventMatch::query()->firstOrNew([
+                'event_round_id' => $round->id,
+                'match_number' => $matchNumber,
+            ]);
+
+            if ($match->exists && $match->status === 'completed' && ! $match->is_bye) {
+                return;
+            }
+
+            $match->fill([
+                'event_id' => $event->id,
+                'event_round_id' => $round->id,
+                'stage' => $round->stage,
+                'player1_id' => $player1->id,
+                'player2_id' => $player2?->id,
+                'player1_score' => $isBye ? $threshold : 0,
+                'player2_score' => 0,
+                'winner_id' => $isBye ? $player1->id : null,
+                'round_number' => $round->round_number,
+                'match_number' => $matchNumber,
+                'status' => $isBye ? 'completed' : 'pending',
+                'is_bye' => $isBye,
+                'source_match1_id' => $pairing['source_match1_id'],
+                'source_match2_id' => $pairing['source_match2_id'],
+                'result_1' => null,
+                'result_2' => null,
+                'result_3' => null,
+                'result_4' => null,
+                'result_5' => null,
+                'result_6' => null,
+                'result_7' => null,
+                'result_8' => null,
+                'result_9' => null,
+                'result_10' => null,
+                'result_11' => null,
+                'result_12' => null,
+                'result_13' => null,
+                'result_type_1' => null,
+                'result_type_2' => null,
+                'result_type_3' => null,
+                'result_type_4' => null,
+                'result_type_5' => null,
+                'result_type_6' => null,
+                'result_type_7' => null,
+                'result_type_8' => null,
+                'result_type_9' => null,
+                'result_type_10' => null,
+                'result_type_11' => null,
+                'result_type_12' => null,
+                'result_type_13' => null,
+                'player1_bey1' => $player1Deck?->deck_bey1,
+                'player1_bey2' => $player1Deck?->deck_bey2,
+                'player1_bey3' => $player1Deck?->deck_bey3,
+                'player2_bey1' => $player2Deck?->deck_bey1,
+                'player2_bey2' => $player2Deck?->deck_bey2,
+                'player2_bey3' => $player2Deck?->deck_bey3,
+            ]);
+
+            if ($match->isDirty()) {
+                $match->save();
+                $updatedMatchCount++;
+            }
+        });
+
+        return $updatedMatchCount;
+    }
+
     private function createPairingMatches(Event $event, EventRound $round, Collection $pairings): void
     {
-        $threshold = $event->battleWinThresholdForStage($round->stage, $pairings->count());
         $participantDecks = ($event->usesLockedDecks() || $round->stage === self::STAGE_SINGLE_ELIM)
             ? $event->eventParticipants()->get()->keyBy('player_id')
             : collect();
 
-        $pairings->values()->each(function (array $pairing, int $index) use ($event, $round, $threshold, $participantDecks): void {
+        $pairings->values()->each(function (array $pairing, int $index) use ($event, $round, $pairings, $participantDecks): void {
+            $matchNumber = $index + 1;
+            $threshold = $round->stage === self::STAGE_SINGLE_ELIM
+                ? $this->singleEliminationMatchThreshold($event, $round, $matchNumber, $pairings->count())
+                : $event->battleWinThresholdForStage($round->stage, $pairings->count());
             $isBye = (bool) $pairing['is_bye'];
             $player1 = $pairing['player1'] ?? null;
             $player2 = $pairing['player2'] ?? null;
@@ -774,7 +1011,7 @@ class BracketService
                 'player2_score' => 0,
                 'winner_id' => $isBye ? $player1->id : null,
                 'round_number' => $round->round_number,
-                'match_number' => $index + 1,
+                'match_number' => $matchNumber,
                 'status' => $isBye ? 'completed' : 'pending',
                 'is_bye' => $isBye,
                 'source_match1_id' => $pairing['source_match1_id'],
@@ -957,24 +1194,11 @@ class BracketService
             ])
             ->findOrFail($round->event_id);
 
-        $singleElimRounds = $event->rounds
-            ->where('stage', self::STAGE_SINGLE_ELIM)
-            ->sortBy('round_number')
-            ->values();
-
-        $latestRound = $singleElimRounds->last();
-        if (! $latestRound || $latestRound->id !== $round->id || $round->status !== 'completed') {
+        if ($round->status !== 'completed') {
             return null;
         }
 
-        $hasFutureRound = $singleElimRounds
-            ->contains(fn (EventRound $eventRound) => $eventRound->round_number > $round->round_number);
-
-        if ($hasFutureRound || $round->matches->count() === 1) {
-            return null;
-        }
-
-        return $this->generateSingleEliminationRound($event);
+        return $this->syncSingleEliminationProgression($event);
     }
 
     private function resolvedPlacements(Event $event): Collection
@@ -989,9 +1213,8 @@ class BracketService
         }
 
         $finalRound = $singleElimRounds->last();
-        $finalMatch = $finalRound->matches
-            ->sortBy('match_number')
-            ->first();
+        $finalMatch = $this->championshipMatchForRound($finalRound);
+        $thirdPlaceMatch = $this->thirdPlaceMatchForRound($finalRound);
 
         if (! $finalMatch?->winner_id) {
             return collect();
@@ -1012,7 +1235,20 @@ class BracketService
             ]);
         }
 
-        if ($singleElimRounds->count() >= 2) {
+        if ($thirdPlaceMatch?->winner_id) {
+            $placements->push([
+                'placement' => 3,
+                'player_id' => $thirdPlaceMatch->winner_id,
+            ]);
+
+            $thirdPlaceLoserId = $this->matchLoserId($thirdPlaceMatch);
+            if ($thirdPlaceLoserId) {
+                $placements->push([
+                    'placement' => 4,
+                    'player_id' => $thirdPlaceLoserId,
+                ]);
+            }
+        } elseif ($singleElimRounds->count() >= 2) {
             $semifinalRound = $singleElimRounds->get($singleElimRounds->count() - 2);
 
             $semifinalLosers = $semifinalRound->matches
@@ -1087,6 +1323,13 @@ class BracketService
         return Player::query()->find($match->winner_id);
     }
 
+    private function resolvedMatchLoser(?EventMatch $match): ?Player
+    {
+        $loserId = $match ? $this->matchLoserId($match) : null;
+
+        return $loserId ? Player::query()->find($loserId) : null;
+    }
+
     private function nextSingleEliminationBracketSize(int $playerCount): int
     {
         $size = 2;
@@ -1126,5 +1369,53 @@ class BracketService
         return $match->winner_id === $match->player1_id
             ? $match->player2_id
             : $match->player1_id;
+    }
+
+    private function singleEliminationRoundLabel(Event $event, int $roundNumber, int $sourceMatchCount, int $matchCount): string
+    {
+        if ($sourceMatchCount === 2) {
+            return $event->usesSwissBracket()
+                ? 'Top Cut Final / 3rd Place'
+                : 'Elimination Final / 3rd Place';
+        }
+
+        if ($event->usesSwissBracket()) {
+            return $matchCount === 1
+                ? 'Top Cut Final'
+                : 'Top Cut Round '.$roundNumber;
+        }
+
+        return $matchCount === 1
+            ? 'Elimination Final'
+            : 'Elimination Round '.$roundNumber;
+    }
+
+    private function singleEliminationMatchThreshold(Event $event, EventRound $round, int $matchNumber, int $roundMatchCount): int
+    {
+        $match = new EventMatch([
+            'stage' => $round->stage,
+            'match_number' => $matchNumber,
+        ]);
+
+        return $event->battleWinThresholdForMatch($match, $round, $round->stage, $roundMatchCount);
+    }
+
+    private function championshipMatchForRound(EventRound $round): ?EventMatch
+    {
+        return $round->matches
+            ->sortBy('match_number')
+            ->first(fn (EventMatch $match) => (int) $match->match_number === 1)
+            ?? $round->matches->sortBy('match_number')->first();
+    }
+
+    private function thirdPlaceMatchForRound(EventRound $round): ?EventMatch
+    {
+        if (! str_contains(strtolower((string) ($round->label ?? '')), '3rd place')) {
+            return null;
+        }
+
+        return $round->matches
+            ->sortBy('match_number')
+            ->first(fn (EventMatch $match) => (int) $match->match_number === 2);
     }
 }

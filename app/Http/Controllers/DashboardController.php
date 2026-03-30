@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
-use App\Models\Player;
 use App\Models\User;
 use App\Services\EventOverviewService;
 use App\Services\RankingService;
@@ -27,9 +26,10 @@ class DashboardController extends Controller
         $players = collect();
         $playersWithoutResults = collect();
         $registerableUsers = collect();
+        $playerRegistrationEvent = null;
 
         if ($activePanel === 'overview') {
-            $leaderboard = $rankingService->leaderboard(5);
+            $leaderboard = $rankingService->leaderboard(10);
             $overviewEvent = $dashboardData['ongoingTournament']
                 ?? $dashboardData['upcomingEvents']->first()
                 ?? $dashboardData['selectedEvent']
@@ -42,14 +42,17 @@ class DashboardController extends Controller
         }
 
         if ($activePanel === 'players') {
-            $leaderboard = $rankingService->leaderboard();
-            $players = Player::query()
-                ->with('user')
-                ->get();
-            $players = $players
-                ->sortBy(fn (Player $player) => strtolower($player->user->nickname))
-                ->values();
+            $leaderboard = $rankingService->leaderboardWithAllPlayers();
             $playersWithoutResults = $rankingService->playersWithoutResults();
+            $playerRegistrationEvent = Event::query()
+                ->with('eventType')
+                ->where('status', 'upcoming')
+                ->orderByRaw("CASE WHEN is_active = 1 THEN 0 ELSE 1 END")
+                ->orderBy('date')
+                ->orderBy('id')
+                ->get()
+                ->first(fn (Event $event) => ! $event->hasStarted() && (! $event->usesLockedDecks() || $event->is_active));
+            $registerableUsers = $this->registerableUsersForEvent($playerRegistrationEvent);
         }
 
         return view('dashboard', array_merge(
@@ -60,6 +63,7 @@ class DashboardController extends Controller
                 'players' => $players,
                 'playersWithoutResults' => $playersWithoutResults,
                 'registerableUsers' => $registerableUsers,
+                'playerRegistrationEvent' => $playerRegistrationEvent,
             ]
         ));
     }

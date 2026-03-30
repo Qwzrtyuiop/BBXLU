@@ -4,11 +4,19 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LiveViewerController;
 use App\Http\Controllers\PlayerController;
 use App\Http\Controllers\UserDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+Route::get('/live', [LiveViewerController::class, 'index'])->name('live.viewer');
+Route::get('/live/match/{match}', [LiveViewerController::class, 'showMatch'])
+    ->whereNumber('match')
+    ->name('live.viewer.match');
+Route::get('/live/{event}', [LiveViewerController::class, 'showEvent'])
+    ->whereNumber('event')
+    ->name('live.viewer.event');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthController::class, 'create'])->name('login');
@@ -34,6 +42,7 @@ Route::middleware(['auth', 'admin'])->group(function (): void {
 
     Route::post('/events/{event}/participants', [EventController::class, 'storeParticipant'])->name('events.participants.store');
     Route::post('/events/{event}/participants/{player}/deck', [EventController::class, 'updateParticipantDeck'])->name('events.participants.deck.store');
+    Route::post('/events/{event}/participants/decks/bulk', [EventController::class, 'bulkUpdateParticipantDecks'])->name('events.participants.decks.bulk.store');
     Route::delete('/events/{event}/participants/{player}', [EventController::class, 'destroyParticipant'])->name('events.participants.destroy');
 
     Route::post('/events/{event}/activate', [EventController::class, 'activate'])->name('events.activate');

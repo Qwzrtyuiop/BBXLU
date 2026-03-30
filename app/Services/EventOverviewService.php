@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\EventAward;
 use App\Models\EventMatch;
 use App\Models\EventParticipant;
+use App\Models\EventRound;
 use App\Models\EventResult;
 use App\Models\EventType;
 use App\Models\Player;
@@ -28,9 +29,70 @@ class EventOverviewService
             'stats' => $this->stats(),
             'events' => $this->allEvents(),
             'ongoingTournament' => $ongoingTournament,
+            'ongoingTournamentPreview' => $this->publicEventPreview($ongoingTournament),
             'latestEvent' => $latestEvent,
             'latestEventPlacements' => $this->latestEventPlacements($latestEvent),
             'awardLeaders' => $this->awardLeaders(),
+        ];
+    }
+
+    public function activeLiveEvent(): ?Event
+    {
+        return $this->ongoingTournament();
+    }
+
+    public function liveEventData(Event $event): array
+    {
+        $liveEvent = Event::query()
+            ->with(['eventType', 'creator'])
+            ->withCount('participants')
+            ->findOrFail($event->id);
+
+        return [
+            'ongoingTournament' => $liveEvent,
+            'ongoingTournamentPreview' => $this->publicEventPreview($liveEvent),
+        ];
+    }
+
+    public function liveMatchData(EventMatch $match): array
+    {
+        $liveMatch = EventMatch::query()
+            ->with([
+                'event.eventType',
+                'event.creator',
+                'round',
+                'player1.user',
+                'player2.user',
+                'winner.user',
+            ])
+            ->findOrFail($match->id);
+
+        $event = $liveMatch->event;
+        $round = $liveMatch->round;
+        $roundMatchCount = $round
+            ? ($round->relationLoaded('matches') ? $round->matches->count() : $round->matches()->count())
+            : 1;
+        $threshold = $event->battleWinThresholdForMatch($liveMatch, $round, $liveMatch->stage, $roundMatchCount);
+
+        $battleRows = $liveMatch->battleResults()->map(function (array $battle) use ($liveMatch): array {
+            $winnerName = (int) $battle['winner'] === 1
+                ? $liveMatch->player1->user->nickname
+                : ($liveMatch->player2_id ? $liveMatch->player2->user->nickname : 'BYE');
+
+            return [
+                'slot' => $battle['slot'],
+                'winner_name' => $winnerName,
+                'finish_type' => $battle['type'],
+                'points' => EventMatch::finishTypePoints($battle['type']),
+            ];
+        });
+
+        return [
+            'match' => $liveMatch,
+            'event' => $event,
+            'round' => $round,
+            'battleRows' => $battleRows,
+            'threshold' => $threshold,
         ];
     }
 
@@ -248,6 +310,41 @@ class EventOverviewService
         });
     }
 
+    private function publicEventPreview(?Event $event): array
+    {
+        if (! $event) {
+            return [];
+        }
+
+        $participants = $this->selectedEventParticipants($event);
+        $results = $this->selectedEventResults($event);
+        $awards = $this->selectedEventAwards($event);
+        $rounds = $this->selectedEventRounds($event);
+        $swissStandings = $this->selectedSwissStandings($event);
+        $allMatches = $rounds
+            ->flatMap(fn ($round) => $round->matches->sortBy('match_number')->values())
+            ->values();
+        $currentRound = $this->publicCurrentRound($event, $rounds);
+        $currentRoundMatches = $currentRound
+            ? $currentRound->matches->sortBy('match_number')->values()
+            : collect();
+        $featuredMatch = $currentRoundMatches->first(fn (EventMatch $match) => $match->status === 'pending');
+
+        return [
+            'participants' => $participants,
+            'results' => $results,
+            'awards' => $awards,
+            'rounds' => $rounds,
+            'swissStandings' => $swissStandings,
+            'pendingMatchCount' => $allMatches->where('status', 'pending')->count(),
+            'completedMatchCount' => $allMatches->where('status', 'completed')->count(),
+            'currentRound' => $currentRound,
+            'currentRoundMatches' => $currentRoundMatches,
+            'currentRoundPendingCount' => $currentRoundMatches->where('status', 'pending')->count(),
+            'featuredMatch' => $featuredMatch,
+        ];
+    }
+
     private function selectedEvent(?int $selectedEventId, string $activePanel, ?Event $ongoingTournament, ?Event $latestEvent): ?Event
     {
         $query = Event::query()
@@ -424,5 +521,39 @@ class EventOverviewService
         }
 
         return true;
+    }
+
+    private function publicCurrentRound(Event $event, Collection $rounds): ?EventRound
+    {
+        $swissRounds = $rounds->where('stage', 'swiss')->sortBy('round_number')->values();
+        $eliminationRounds = $event->usesSwissBracket()
+            ? $rounds->where('stage', 'single_elim')->sortBy('round_number')->values()
+            : $rounds->sortBy('round_number')->values();
+
+        $activeEliminationRound = $eliminationRounds->first(
+            fn (EventRound $round) => $round->matches->contains(fn (EventMatch $match) => $match->status === 'pending')
+        );
+
+        if ($activeEliminationRound) {
+            return $activeEliminationRound;
+        }
+
+        $activeSwissRound = $swissRounds->first(
+            fn (EventRound $round) => $round->matches->contains(fn (EventMatch $match) => $match->status === 'pending')
+        );
+
+        if ($activeSwissRound) {
+            return $activeSwissRound;
+        }
+
+        if ($eliminationRounds->isNotEmpty()) {
+            return $eliminationRounds->last();
+        }
+
+        if ($swissRounds->isNotEmpty()) {
+            return $swissRounds->last();
+        }
+
+        return null;
     }
 }

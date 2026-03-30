@@ -243,7 +243,50 @@ class EventController extends Controller
         $this->applyParticipantDeckRegistration($participant, $this->participantDeckPayload($data));
 
         return $this->redirectTarget($request, 'events.show', [$event], $event)
-            ->with('status', 'Deck registration saved.');
+            ->with('status', 'Deck registration saved.')
+            ->with('deck_modal_reopen', true)
+            ->with('deck_modal_focus_player_id', $participant->player_id);
+    }
+
+    public function bulkUpdateParticipantDecks(Request $request, Event $event): RedirectResponse
+    {
+        $data = $request->validate([
+            'decks' => ['required', 'array', 'min:1'],
+            'decks.*.deck_bey1' => ['required', 'string', 'max:255'],
+            'decks.*.deck_bey2' => ['required', 'string', 'max:255'],
+            'decks.*.deck_bey3' => ['required', 'string', 'max:255'],
+        ]);
+
+        $playerIds = collect(array_keys($data['decks']))
+            ->map(fn ($playerId) => (int) $playerId)
+            ->filter(fn (int $playerId) => $playerId > 0)
+            ->values();
+
+        $participants = EventParticipant::query()
+            ->where('event_id', $event->id)
+            ->whereIn('player_id', $playerIds)
+            ->get()
+            ->keyBy('player_id');
+
+        if ($participants->count() !== $playerIds->count()) {
+            abort(404);
+        }
+
+        DB::transaction(function () use ($data, $participants): void {
+            foreach ($data['decks'] as $playerId => $deckPayload) {
+                $participant = $participants->get((int) $playerId);
+
+                if (! $participant) {
+                    continue;
+                }
+
+                $this->applyParticipantDeckRegistration($participant, $this->participantDeckPayload($deckPayload));
+            }
+        });
+
+        return $this->redirectTarget($request, 'events.show', [$event], $event)
+            ->with('status', 'Bulk deck registration saved.')
+            ->with('deck_modal_reopen', true);
     }
 
     public function destroyParticipant(Request $request, Event $event, Player $player): RedirectResponse
@@ -503,22 +546,24 @@ class EventController extends Controller
             if ($round) {
                 $bracketService->refreshRoundStatus($round);
 
-                if ($round->status === 'completed') {
-                    try {
-                        $autoAdvanceStatus = $bracketService->advanceBracketAfterRoundCompletion($round);
-                    } catch (RuntimeException $exception) {
-                        $bracketService->refreshEventStatus($event->fresh('rounds.matches'));
+                try {
+                    $autoAdvanceStatus = $round->stage === 'single_elim'
+                        ? $bracketService->syncSingleEliminationProgression($event)
+                        : ($round->status === 'completed'
+                            ? $bracketService->advanceBracketAfterRoundCompletion($round)
+                            : null);
+                } catch (RuntimeException $exception) {
+                    $bracketService->refreshEventStatus($event->fresh('rounds.matches'));
 
-                        return $this->redirectTarget($request, 'events.show', [$event], $event)
-                            ->with('status', $statusMessage)
-                            ->withErrors([
-                                'bracket' => $exception->getMessage(),
-                            ]);
-                    }
+                    return $this->redirectTarget($request, 'events.show', [$event], $event)
+                        ->with('status', $statusMessage)
+                        ->withErrors([
+                            'bracket' => $exception->getMessage(),
+                        ]);
+                }
 
-                    if ($autoAdvanceStatus) {
-                        $statusMessage .= ' '.$autoAdvanceStatus;
-                    }
+                if ($autoAdvanceStatus) {
+                    $statusMessage .= ' '.$autoAdvanceStatus;
                 }
             }
         }
@@ -870,7 +915,7 @@ class EventController extends Controller
             ? ($eventRound->relationLoaded('matches') ? $eventRound->matches->count() : $eventRound->matches()->count())
             : null;
 
-        return $event->battleWinThresholdForStage($stage, $roundMatchCount);
+        return $event->battleWinThresholdForMatch($match, $eventRound, $stage, $roundMatchCount);
     }
 
     private function redirectTarget(
