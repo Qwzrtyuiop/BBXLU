@@ -198,6 +198,26 @@ document.addEventListener('DOMContentLoaded', () => {
         document.body.style.overflowY = 'hidden';
     }
 
+    const registerForm = document.querySelector('[data-auth-register]');
+    if (registerForm) {
+        const modeInputs = registerForm.querySelectorAll('input[name="mode"]');
+        const modePanels = registerForm.querySelectorAll('[data-register-mode-panel]');
+
+        const updateRegisterMode = () => {
+            const activeMode = Array.from(modeInputs).find((input) => input.checked)?.value || 'register';
+
+            modePanels.forEach((panel) => {
+                panel.classList.toggle('hidden', panel.dataset.registerModePanel !== activeMode);
+            });
+        };
+
+        modeInputs.forEach((input) => {
+            input.addEventListener('change', updateRegisterMode);
+        });
+
+        updateRegisterMode();
+    }
+
     const registerModal = document.querySelector('[data-register-modal]');
     if (registerModal) {
         const openButtons = document.querySelectorAll('[data-register-modal-open]');

@@ -13,6 +13,7 @@
         $isFullScreen = (bool) ($fullScreen ?? false);
         $hideTopSelectors = (bool) ($hideTopSelectors ?? false);
         $hideFrameHeader = (bool) ($hideFrameHeader ?? false);
+        $isAdmin = auth()->check() && auth()->user()->role === 'admin';
         $containerClasses = $isFullScreen
             ? 'w-full px-3 pb-3 pt-3 sm:px-4 lg:px-5'
             : 'mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8';
@@ -58,9 +59,14 @@
                     </div>
                     @if (! $hideTopSelectors)
                         <nav class="{{ $navClasses }}">
-                            <a href="{{ route('dashboard') }}" class="{{ $navLinkClasses }}">Dashboard</a>
-                            <a href="{{ route('events.index') }}" class="{{ $navLinkClasses }}">Events</a>
-                            <a href="{{ route('players.index') }}" class="{{ $navLinkClasses }}">Players</a>
+                            @if ($isAdmin)
+                                <a href="{{ route('dashboard') }}" class="{{ $navLinkClasses }}">Dashboard</a>
+                                <a href="{{ route('events.index') }}" class="{{ $navLinkClasses }}">Events</a>
+                                <a href="{{ route('players.index') }}" class="{{ $navLinkClasses }}">Players</a>
+                            @else
+                                <a href="{{ route('user.dashboard') }}" class="{{ $navLinkClasses }}">User Dashboard</a>
+                                <a href="{{ route('home') }}" class="{{ $navLinkClasses }}">Home</a>
+                            @endif
                             <span class="{{ $userBadgeClasses }}">
                                 {{ auth()->user()->nickname }}
                             </span>

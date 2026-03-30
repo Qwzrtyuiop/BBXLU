@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PlayerController;
+use App\Http\Controllers\UserDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
@@ -12,10 +13,16 @@ Route::get('/', HomeController::class)->name('home');
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthController::class, 'create'])->name('login');
     Route::post('/login', [AuthController::class, 'store'])->name('login.store');
+    Route::get('/register', [AuthController::class, 'createRegister'])->name('register');
+    Route::post('/register', [AuthController::class, 'storeRegister'])->name('register.store');
+});
+
+Route::middleware('auth')->group(function (): void {
+    Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
+    Route::get('/userdashboard', UserDashboardController::class)->name('user.dashboard');
 });
 
 Route::middleware(['auth', 'admin'])->group(function (): void {
-    Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/players', [PlayerController::class, 'index'])->name('players.index');
