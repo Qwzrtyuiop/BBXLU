@@ -47,8 +47,9 @@ class RankingService
         return Player::query()
             ->with('user')
             ->whereDoesntHave('results')
-            ->orderBy('id')
-            ->limit($limit)
-            ->get();
+            ->get()
+            ->sortBy(fn (Player $player) => strtolower($player->user->nickname))
+            ->take($limit)
+            ->values();
     }
 }

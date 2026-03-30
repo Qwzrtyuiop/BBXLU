@@ -26,6 +26,8 @@ class Event extends Model
         'location',
         'status',
         'is_active',
+        'swiss_king_player_id',
+        'bird_king_player_id',
         'bracket_status',
         'is_lock_deck',
         'created_by',
@@ -45,12 +47,20 @@ class Event extends Model
 
     public function eventType(): BelongsTo
     {
-        return $this->belongsTo(EventType::class);
+        return $this->belongsTo(EventType::class)->withDefault([
+            'name' => 'Unassigned',
+        ]);
     }
 
     public function creator(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by')->withDefault([
+            'nickname' => 'Unknown creator',
+            'name' => 'Unknown creator',
+            'email' => null,
+            'role' => 'user',
+            'is_claimed' => false,
+        ]);
     }
 
     public function participants(): BelongsToMany
@@ -103,6 +113,37 @@ class Event extends Model
     public function battleWinThreshold(): int
     {
         return (int) floor(max(1, $this->match_format) / 2) + 1;
+    }
+
+    public function battleWinThresholdForStage(?string $stage = null, ?int $roundMatchCount = null): int
+    {
+        if (
+            $this->usesSwissBracket()
+            && $stage === 'single_elim'
+            && $roundMatchCount === 1
+        ) {
+            return 7;
+        }
+
+        return $this->battleWinThreshold();
+    }
+
+    public function maxBattleSlotsForThreshold(int $threshold): int
+    {
+        return max(7, ($threshold * 2) - 1);
+    }
+
+    public function hasStarted(): bool
+    {
+        if (in_array($this->bracket_status, ['in_progress', 'completed'], true)) {
+            return true;
+        }
+
+        if ($this->relationLoaded('rounds')) {
+            return $this->rounds->isNotEmpty();
+        }
+
+        return $this->rounds()->exists();
     }
 
     public function storedChallongeLink(): ?string

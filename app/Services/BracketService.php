@@ -16,6 +16,9 @@ use RuntimeException;
 
 class BracketService
 {
+    private const STAGE_SWISS = 'swiss';
+    private const STAGE_SINGLE_ELIM = 'single_elim';
+
     public function generateNextRound(Event $event, bool $reshuffle = false): string
     {
         return DB::transaction(function () use ($event, $reshuffle): string {
@@ -175,15 +178,16 @@ class BracketService
             ->sortBy('round_number')
             ->values();
 
+        if (! $this->shouldKeepLockedSwissAwardPlayers($event)) {
+            $this->clearLockedSwissAwardPlayers($event);
+        }
+
         if ($singleElimRounds->isNotEmpty()) {
             $finalRound = $singleElimRounds->last();
             $completed = $finalRound->status === 'completed' && $finalRound->matches->count() === 1;
 
             $event->bracket_status = $completed ? 'completed' : 'in_progress';
             $event->status = $completed ? 'finished' : 'upcoming';
-            if ($completed) {
-                $event->is_active = false;
-            }
             $event->save();
 
             if ($completed) {
@@ -241,11 +245,41 @@ class BracketService
         $hasTopCut = $event->rounds->where('stage', 'single_elim')->isNotEmpty();
         $shouldAdvance = $round->round_number < (int) $event->swiss_rounds || ! $hasTopCut;
 
+        if ($round->round_number >= (int) $event->swiss_rounds) {
+            $this->lockSwissAwardPlayers($event);
+        }
+
         if (! $shouldAdvance) {
             return null;
         }
 
         return $this->generateNextRound($event);
+    }
+
+    public function advanceBracketAfterRoundCompletion(EventRound $round): ?string
+    {
+        return match ($round->stage) {
+            self::STAGE_SWISS => $this->advanceSwissAfterRoundCompletion($round),
+            self::STAGE_SINGLE_ELIM => $this->advanceSingleEliminationAfterRoundCompletion($round),
+            default => null,
+        };
+    }
+
+    public function regenerateAutomaticResultsAndAwards(Event $event): void
+    {
+        $event = Event::query()
+            ->with([
+                'participants.user',
+                'rounds.matches.winner',
+                'matches',
+            ])
+            ->findOrFail($event->id);
+
+        if ($event->bracket_status !== 'completed') {
+            throw new RuntimeException('Automatic awards can only be regenerated after the bracket is complete.');
+        }
+
+        $this->syncAutomaticResultsAndAwards($event);
     }
 
     public function canReshuffleFirstSwissRound(Event $event): bool
@@ -386,6 +420,10 @@ class BracketService
 
     private function generateSingleEliminationRound(Event $event, bool $fromSwissCut = false): string
     {
+        if ($fromSwissCut) {
+            $this->lockSwissAwardPlayers($event);
+        }
+
         $singleElimRounds = $event->rounds
             ->where('stage', 'single_elim')
             ->sortBy('round_number')
@@ -639,40 +677,37 @@ class BracketService
 
     private function createSeededSingleEliminationMatches(Event $event, EventRound $round, Collection $players): void
     {
-        $pairings = collect();
-        $seededPlayers = $players->values();
+        $seededPlayers = $players->values()->keyBy(fn (Player $player, int $index) => $index + 1);
+        $bracketSize = $this->nextSingleEliminationBracketSize($seededPlayers->count());
+        $seedOrder = collect($this->singleEliminationSeedOrder($bracketSize));
 
-        if ($seededPlayers->count() % 2 === 1) {
-            $pairings->push([
-                'player1' => $seededPlayers->shift(),
-                'player2' => null,
-                'is_bye' => true,
-                'source_match1_id' => null,
-                'source_match2_id' => null,
-            ]);
-        }
+        $pairings = $seedOrder
+            ->chunk(2)
+            ->map(function (Collection $seeds) use ($seededPlayers) {
+                $seeds = $seeds->values();
+                $player1 = $seededPlayers->get((int) $seeds->get(0));
+                $player2 = $seededPlayers->get((int) $seeds->get(1));
 
-        while ($seededPlayers->count() > 1) {
-            $pairings->push([
-                'player1' => $seededPlayers->shift(),
-                'player2' => $seededPlayers->pop(),
-                'is_bye' => false,
-                'source_match1_id' => null,
-                'source_match2_id' => null,
-            ]);
-        }
+                if (! $player1 && ! $player2) {
+                    return null;
+                }
 
-        if ($seededPlayers->isNotEmpty()) {
-            $pairings->push([
-                'player1' => $seededPlayers->shift(),
-                'player2' => null,
-                'is_bye' => true,
-                'source_match1_id' => null,
-                'source_match2_id' => null,
-            ]);
-        }
+                if (! $player1) {
+                    [$player1, $player2] = [$player2, $player1];
+                }
 
-        $this->createPairingMatches($event, $round, $pairings->values());
+                return [
+                    'player1' => $player1,
+                    'player2' => $player2,
+                    'is_bye' => ! $player2,
+                    'source_match1_id' => null,
+                    'source_match2_id' => null,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        $this->createPairingMatches($event, $round, $pairings);
     }
 
     private function createAdvancedSingleEliminationMatches(Event $event, EventRound $round, Collection $completedMatches): void
@@ -680,12 +715,23 @@ class BracketService
         $pairings = collect();
 
         foreach ($completedMatches->chunk(2) as $chunk) {
+            $chunk = $chunk->values();
             $first = $chunk->get(0);
             $second = $chunk->get(1);
+            $firstWinner = $this->resolvedMatchWinner($first);
+            $secondWinner = $this->resolvedMatchWinner($second);
+
+            if (! $firstWinner) {
+                throw new RuntimeException('One completed elimination match is missing a winner. Re-save the affected match before continuing.');
+            }
+
+            if ($second && ! $secondWinner) {
+                throw new RuntimeException('One completed elimination match is missing a winner. Re-save the affected match before continuing.');
+            }
 
             $pairings->push([
-                'player1' => $first?->winner,
-                'player2' => $second?->winner,
+                'player1' => $firstWinner,
+                'player2' => $secondWinner,
                 'is_bye' => ! $second,
                 'source_match1_id' => $first?->id,
                 'source_match2_id' => $second?->id,
@@ -697,20 +743,36 @@ class BracketService
 
     private function createPairingMatches(Event $event, EventRound $round, Collection $pairings): void
     {
-        $threshold = $event->battleWinThreshold();
+        $threshold = $event->battleWinThresholdForStage($round->stage, $pairings->count());
+        $participantDecks = ($event->usesLockedDecks() || $round->stage === self::STAGE_SINGLE_ELIM)
+            ? $event->eventParticipants()->get()->keyBy('player_id')
+            : collect();
 
-        $pairings->values()->each(function (array $pairing, int $index) use ($event, $round, $threshold): void {
+        $pairings->values()->each(function (array $pairing, int $index) use ($event, $round, $threshold, $participantDecks): void {
             $isBye = (bool) $pairing['is_bye'];
+            $player1 = $pairing['player1'] ?? null;
+            $player2 = $pairing['player2'] ?? null;
+
+            if (! $player1 instanceof Player) {
+                throw new RuntimeException('The bracket could not resolve a player for the next elimination slot.');
+            }
+
+            if (! $isBye && ! $player2 instanceof Player) {
+                throw new RuntimeException('The bracket could not resolve an opponent for the next elimination slot.');
+            }
+
+            $player1Deck = $participantDecks->get($player1->id);
+            $player2Deck = $player2 ? $participantDecks->get($player2->id) : null;
 
             EventMatch::query()->create([
                 'event_id' => $event->id,
                 'event_round_id' => $round->id,
                 'stage' => $round->stage,
-                'player1_id' => $pairing['player1']->id,
-                'player2_id' => $pairing['player2']?->id,
+                'player1_id' => $player1->id,
+                'player2_id' => $player2?->id,
                 'player1_score' => $isBye ? $threshold : 0,
                 'player2_score' => 0,
-                'winner_id' => $isBye ? $pairing['player1']->id : null,
+                'winner_id' => $isBye ? $player1->id : null,
                 'round_number' => $round->round_number,
                 'match_number' => $index + 1,
                 'status' => $isBye ? 'completed' : 'pending',
@@ -724,6 +786,12 @@ class BracketService
                 'result_5' => null,
                 'result_6' => null,
                 'result_7' => null,
+                'result_8' => null,
+                'result_9' => null,
+                'result_10' => null,
+                'result_11' => null,
+                'result_12' => null,
+                'result_13' => null,
                 'result_type_1' => null,
                 'result_type_2' => null,
                 'result_type_3' => null,
@@ -731,12 +799,18 @@ class BracketService
                 'result_type_5' => null,
                 'result_type_6' => null,
                 'result_type_7' => null,
-                'player1_bey1' => null,
-                'player1_bey2' => null,
-                'player1_bey3' => null,
-                'player2_bey1' => null,
-                'player2_bey2' => null,
-                'player2_bey3' => null,
+                'result_type_8' => null,
+                'result_type_9' => null,
+                'result_type_10' => null,
+                'result_type_11' => null,
+                'result_type_12' => null,
+                'result_type_13' => null,
+                'player1_bey1' => $player1Deck?->deck_bey1,
+                'player1_bey2' => $player1Deck?->deck_bey2,
+                'player1_bey3' => $player1Deck?->deck_bey3,
+                'player2_bey1' => $player2Deck?->deck_bey1,
+                'player2_bey2' => $player2Deck?->deck_bey2,
+                'player2_bey3' => $player2Deck?->deck_bey3,
             ]);
         });
     }
@@ -777,12 +851,20 @@ class BracketService
             }
 
             if ($event->usesSwissBracket()) {
-                $swissLeaderId = $this->swissStandings($event)->first()['player']->id ?? null;
-
-                $this->assignAutomaticAward($event, 'Swiss Champ', $championId);
+                $swissStandings = $this->swissStandings($event);
+                $swissLeaderId = $event->swiss_king_player_id ?: ($swissStandings->first()['player']->id ?? null);
+                $swissLastPlaceId = $event->bird_king_player_id ?: ($swissStandings->last()['player']->id ?? null);
 
                 if ($swissLeaderId) {
                     $this->assignAutomaticAward($event, 'Swiss King', $swissLeaderId);
+                }
+
+                if ($swissLastPlaceId) {
+                    $this->assignAutomaticAward($event, 'Bird King', $swissLastPlaceId);
+                }
+
+                if ($swissLeaderId && $swissLeaderId === $championId) {
+                    $this->assignAutomaticAward($event, 'Swiss Champ', $championId);
                 }
 
                 return;
@@ -798,6 +880,51 @@ class BracketService
         EventAward::query()->where('event_id', $event->id)->delete();
     }
 
+    private function lockSwissAwardPlayers(Event $event): void
+    {
+        if (! $this->shouldKeepLockedSwissAwardPlayers($event)) {
+            return;
+        }
+
+        $swissStandings = $this->swissStandings($event);
+
+        $event->forceFill([
+            'swiss_king_player_id' => $swissStandings->first()['player']->id ?? null,
+            'bird_king_player_id' => $swissStandings->last()['player']->id ?? null,
+        ])->save();
+    }
+
+    private function clearLockedSwissAwardPlayers(Event $event): void
+    {
+        if (! $event->usesSwissBracket()) {
+            return;
+        }
+
+        if ($event->swiss_king_player_id === null && $event->bird_king_player_id === null) {
+            return;
+        }
+
+        $event->forceFill([
+            'swiss_king_player_id' => null,
+            'bird_king_player_id' => null,
+        ])->save();
+    }
+
+    private function shouldKeepLockedSwissAwardPlayers(Event $event): bool
+    {
+        if (! $event->usesSwissBracket()) {
+            return false;
+        }
+
+        $swissRounds = $event->rounds
+            ->where('stage', 'swiss')
+            ->sortBy('round_number')
+            ->values();
+
+        return $swissRounds->count() >= (int) $event->swiss_rounds
+            && $swissRounds->last()?->status === 'completed';
+    }
+
     private function assignAutomaticAward(Event $event, string $awardName, int $playerId): void
     {
         $awardId = Award::query()->where('name', $awardName)->value('id');
@@ -811,6 +938,43 @@ class BracketService
             'player_id' => $playerId,
             'award_id' => $awardId,
         ]);
+    }
+
+    private function advanceSingleEliminationAfterRoundCompletion(EventRound $round): ?string
+    {
+        if ($round->stage !== self::STAGE_SINGLE_ELIM) {
+            return null;
+        }
+
+        $event = Event::query()
+            ->with([
+                'participants.user',
+                'eventParticipants.player.user',
+                'rounds.matches.winner',
+                'rounds.matches.player1',
+                'rounds.matches.player2',
+                'matches',
+            ])
+            ->findOrFail($round->event_id);
+
+        $singleElimRounds = $event->rounds
+            ->where('stage', self::STAGE_SINGLE_ELIM)
+            ->sortBy('round_number')
+            ->values();
+
+        $latestRound = $singleElimRounds->last();
+        if (! $latestRound || $latestRound->id !== $round->id || $round->status !== 'completed') {
+            return null;
+        }
+
+        $hasFutureRound = $singleElimRounds
+            ->contains(fn (EventRound $eventRound) => $eventRound->round_number > $round->round_number);
+
+        if ($hasFutureRound || $round->matches->count() === 1) {
+            return null;
+        }
+
+        return $this->generateSingleEliminationRound($event);
     }
 
     private function resolvedPlacements(Event $event): Collection
@@ -904,6 +1068,53 @@ class BracketService
             ->sortBy('placement')
             ->take(4)
             ->values();
+    }
+
+    private function resolvedMatchWinner(?EventMatch $match): ?Player
+    {
+        if (! $match || ! $match->winner_id) {
+            return null;
+        }
+
+        if ($match->player1_id === $match->winner_id && $match->player1?->id === $match->winner_id) {
+            return $match->player1;
+        }
+
+        if ($match->player2_id === $match->winner_id && $match->player2?->id === $match->winner_id) {
+            return $match->player2;
+        }
+
+        return Player::query()->find($match->winner_id);
+    }
+
+    private function nextSingleEliminationBracketSize(int $playerCount): int
+    {
+        $size = 2;
+
+        while ($size < $playerCount) {
+            $size *= 2;
+        }
+
+        return $size;
+    }
+
+    private function singleEliminationSeedOrder(int $bracketSize): array
+    {
+        $order = [1, 2];
+
+        while (count($order) < $bracketSize) {
+            $pairTotal = (count($order) * 2) + 1;
+            $nextOrder = [];
+
+            foreach ($order as $seed) {
+                $nextOrder[] = $seed;
+                $nextOrder[] = $pairTotal - $seed;
+            }
+
+            $order = $nextOrder;
+        }
+
+        return $order;
     }
 
     private function matchLoserId(EventMatch $match): ?int

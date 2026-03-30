@@ -13,6 +13,7 @@
         $isFullScreen = (bool) ($fullScreen ?? false);
         $hideTopSelectors = (bool) ($hideTopSelectors ?? false);
         $hideFrameHeader = (bool) ($hideFrameHeader ?? false);
+        $hideGlobalFeedback = (bool) ($hideGlobalFeedback ?? false);
         $isAdmin = auth()->check() && auth()->user()->role === 'admin';
         $containerClasses = $isFullScreen
             ? 'w-full px-3 pb-3 pt-3 sm:px-4 lg:px-5'
@@ -82,13 +83,13 @@
             </header>
         @endunless
 
-        @if (session('status'))
+        @if (! $hideGlobalFeedback && session('status'))
             <div class="{{ $statusClasses }}">
                 {{ session('status') }}
             </div>
         @endif
 
-        @if ($errors->any())
+        @if (! $hideGlobalFeedback && $errors->any())
             <div class="{{ $errorClasses }}">
                 <p class="mb-2 font-semibold">Please fix the following:</p>
                 <ul class="list-disc space-y-1 pl-5">

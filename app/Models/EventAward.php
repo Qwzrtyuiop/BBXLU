@@ -20,16 +20,20 @@ class EventAward extends Model
 
     public function event(): BelongsTo
     {
-        return $this->belongsTo(Event::class);
+        return $this->belongsTo(Event::class)->withDefault([
+            'title' => 'Unknown event',
+        ]);
     }
 
     public function player(): BelongsTo
     {
-        return $this->belongsTo(Player::class);
+        return $this->belongsTo(Player::class)->withDefault();
     }
 
     public function award(): BelongsTo
     {
-        return $this->belongsTo(Award::class);
+        return $this->belongsTo(Award::class)->withDefault([
+            'name' => 'Unknown award',
+        ]);
     }
 }

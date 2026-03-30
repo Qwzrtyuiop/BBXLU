@@ -12,6 +12,7 @@ class EventMatch extends Model
     use HasFactory;
 
     public const UPDATED_AT = null;
+    public const MAX_BATTLE_SLOTS = 13;
     public const FINISH_TYPE_POINTS = [
         'spin' => 1,
         'burst' => 2,
@@ -43,6 +44,12 @@ class EventMatch extends Model
         'result_5',
         'result_6',
         'result_7',
+        'result_8',
+        'result_9',
+        'result_10',
+        'result_11',
+        'result_12',
+        'result_13',
         'result_type_1',
         'result_type_2',
         'result_type_3',
@@ -50,6 +57,12 @@ class EventMatch extends Model
         'result_type_5',
         'result_type_6',
         'result_type_7',
+        'result_type_8',
+        'result_type_9',
+        'result_type_10',
+        'result_type_11',
+        'result_type_12',
+        'result_type_13',
         'player1_bey1',
         'player1_bey2',
         'player1_bey3',
@@ -67,7 +80,9 @@ class EventMatch extends Model
 
     public function event(): BelongsTo
     {
-        return $this->belongsTo(Event::class);
+        return $this->belongsTo(Event::class)->withDefault([
+            'title' => 'Unknown event',
+        ]);
     }
 
     public function round(): BelongsTo
@@ -77,17 +92,17 @@ class EventMatch extends Model
 
     public function player1(): BelongsTo
     {
-        return $this->belongsTo(Player::class, 'player1_id');
+        return $this->belongsTo(Player::class, 'player1_id')->withDefault();
     }
 
     public function player2(): BelongsTo
     {
-        return $this->belongsTo(Player::class, 'player2_id');
+        return $this->belongsTo(Player::class, 'player2_id')->withDefault();
     }
 
     public function winner(): BelongsTo
     {
-        return $this->belongsTo(Player::class, 'winner_id');
+        return $this->belongsTo(Player::class, 'winner_id')->withDefault();
     }
 
     public function sourceMatch1(): BelongsTo
@@ -102,7 +117,7 @@ class EventMatch extends Model
 
     public function resultValues(): Collection
     {
-        return collect(range(1, 7))
+        return collect(range(1, self::MAX_BATTLE_SLOTS))
             ->map(fn (int $index) => $this->{"result_{$index}"})
             ->filter(fn ($value) => $value !== null)
             ->values();
@@ -110,7 +125,7 @@ class EventMatch extends Model
 
     public function battleResults(): Collection
     {
-        return collect(range(1, 7))
+        return collect(range(1, self::MAX_BATTLE_SLOTS))
             ->map(function (int $index) {
                 $winner = $this->{"result_{$index}"};
 

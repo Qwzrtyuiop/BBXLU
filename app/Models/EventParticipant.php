@@ -31,8 +31,7 @@ class EventParticipant extends Model
 
     public function hasRegisteredDeck(): bool
     {
-        return filled($this->deck_name)
-            && filled($this->deck_bey1)
+        return filled($this->deck_bey1)
             && filled($this->deck_bey2)
             && filled($this->deck_bey3);
     }
@@ -52,7 +51,7 @@ class EventParticipant extends Model
             return 'Deck not registered';
         }
 
-        return trim($this->deck_name.' - '.implode(', ', $this->registeredBeys()));
+        return implode(', ', $this->registeredBeys());
     }
 
     public function requiresDeckFor(Event $event, bool $enteringSingleElim = false): bool
@@ -62,11 +61,13 @@ class EventParticipant extends Model
 
     public function event(): BelongsTo
     {
-        return $this->belongsTo(Event::class);
+        return $this->belongsTo(Event::class)->withDefault([
+            'title' => 'Unknown event',
+        ]);
     }
 
     public function player(): BelongsTo
     {
-        return $this->belongsTo(Player::class);
+        return $this->belongsTo(Player::class)->withDefault();
     }
 }

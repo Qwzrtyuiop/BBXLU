@@ -27,41 +27,95 @@
     $footerLabel = $match->is_bye
         ? 'auto advance'
         : ($isCompleted ? 'winner: '.($match->winner?->user->nickname ?? 'TBD') : 'record result');
+    $gridColumn = $gridColumn ?? null;
+    $gridRowStart = $gridRowStart ?? null;
+    $bracketConnectorHeightRem = $bracketConnectorHeightRem ?? 0;
+    $showBracketConnector = $showBracketConnector ?? false;
+    $showBracketOutgoingConnector = $showBracketOutgoingConnector ?? false;
+    $bracketOutgoingDirection = $bracketOutgoingDirection ?? 'down';
+    $bracketOutgoingHalfHeightRem = $bracketOutgoingHalfHeightRem ?? 0;
+    $bracketLaneWidthRem = 1.75;
+    $bracketColumnGapRem = 2;
 @endphp
 
-<div>
-    @if ($layout === 'swiss')
+@if ($layout === 'swiss')
+    <div>
         <button
             type="button"
             data-workspace-match-open
             data-match-template-id="{{ $matchTemplateId }}"
             data-match-modal-title="{{ $matchLabel }}"
             data-match-modal-subtitle="{{ $roundLabel }}"
-            class="block w-full border text-left transition hover:border-cyan-400/55 hover:bg-slate-900/90 {{ $cardBorderClasses }}"
+            class="block w-full border px-2 py-1.5 text-left transition hover:border-cyan-400/55 hover:bg-slate-900/90 {{ $cardBorderClasses }}"
         >
-            <div class="flex items-stretch">
-                <div class="flex w-8 shrink-0 items-center justify-center border-r border-slate-800/80 bg-slate-900/85 text-[9px] font-semibold text-slate-500">
-                    {{ $match->match_number ?: $matchIndex }}
+            <div class="grid gap-1">
+                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 rounded border px-2 py-1 text-[10px] leading-tight {{ $player1Won ? 'border-amber-400/40 bg-amber-500/14 font-semibold text-slate-50' : 'border-slate-800/90 bg-slate-900/70 text-slate-200' }}">
+                    <span class="truncate">{{ $player1Name }}</span>
+                    <span class="text-right text-[9px] font-semibold {{ $player1Won ? 'text-amber-100' : 'text-slate-400' }}">{{ $player1Metric }}</span>
                 </div>
-
-                <div class="min-w-0 flex-1">
-                    <div class="grid min-h-[2.15rem] grid-cols-[minmax(0,1fr)_2.6rem] items-stretch border-b border-slate-800/80">
-                        <span class="truncate px-2 py-1.5 text-[11px] {{ $player1Won ? 'font-semibold text-slate-50' : 'text-slate-200' }}">{{ $player1Name }}</span>
-                        <span class="flex items-center justify-center border-l border-slate-800/80 text-[11px] font-semibold {{ $player1Won ? 'bg-amber-500/20 text-amber-100' : 'bg-slate-900/85 text-slate-400' }}">{{ $player1Metric }}</span>
-                    </div>
-                    <div class="grid min-h-[2.15rem] grid-cols-[minmax(0,1fr)_2.6rem] items-stretch">
-                        <span class="truncate px-2 py-1.5 text-[11px] {{ $player2Won ? 'font-semibold text-slate-50' : 'text-slate-300' }}">{{ $player2Name }}</span>
-                        <span class="flex items-center justify-center border-l border-slate-800/80 text-[11px] font-semibold {{ $player2Won ? 'bg-amber-500/20 text-amber-100' : 'bg-slate-900/85 text-slate-400' }}">{{ $player2Metric }}</span>
-                    </div>
+                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 rounded border px-2 py-1 text-[10px] leading-tight {{ $player2Won ? 'border-amber-400/40 bg-amber-500/14 font-semibold text-slate-50' : 'border-slate-800/90 bg-slate-900/70 text-slate-300' }}">
+                    <span class="truncate">{{ $player2Name }}</span>
+                    <span class="text-right text-[9px] font-semibold {{ $player2Won ? 'text-amber-100' : 'text-slate-400' }}">{{ $player2Metric }}</span>
                 </div>
-            </div>
-
-            <div class="flex items-center justify-between gap-2 border-t border-slate-800/80 px-2 py-1">
-                <span class="text-[9px] uppercase tracking-[0.14em] {{ $stateTextClasses }}">{{ $stateLabel }}</span>
-                <span class="truncate text-[9px] uppercase tracking-[0.12em] text-slate-500">{{ $footerLabel }}</span>
             </div>
         </button>
-    @else
+    </div>
+@elseif ($layout === 'bracket')
+    <div
+        class="relative flex h-full min-h-[4.75rem] items-center overflow-visible"
+        @if ($gridColumn !== null && $gridRowStart !== null)
+            style="grid-column: {{ $gridColumn }}; grid-row: {{ $gridRowStart }};"
+        @endif
+    >
+        @if ($showBracketConnector)
+            <span
+                class="absolute top-1/2 h-px -translate-y-1/2 bg-white"
+                style="left: 0; width: {{ $bracketLaneWidthRem }}rem;"
+            ></span>
+            <span
+                class="absolute w-px bg-white"
+                style="left: 0; top: calc(50% - {{ $bracketConnectorHeightRem / 2 }}rem); height: {{ $bracketConnectorHeightRem }}rem;"
+            ></span>
+        @endif
+
+        <button
+            type="button"
+            data-workspace-match-open
+            data-match-template-id="{{ $matchTemplateId }}"
+            data-match-modal-title="{{ $matchLabel }}"
+            data-match-modal-subtitle="{{ $roundLabel }}"
+            class="relative block w-full max-w-[11.5rem] border px-2 py-1.5 text-left transition hover:border-cyan-400/55 hover:bg-slate-900/90 {{ $cardBorderClasses }}"
+            style="margin-left: {{ $bracketLaneWidthRem }}rem;"
+        >
+            @if ($showBracketOutgoingConnector)
+                <span
+                    class="absolute top-1/2 h-px -translate-y-1/2 bg-white"
+                    style="left: calc(100% + 1px); width: {{ $bracketColumnGapRem }}rem;"
+                ></span>
+                <span
+                    class="absolute w-px bg-white"
+                    style="
+                        left: calc(100% + {{ $bracketColumnGapRem }}rem + 1px);
+                        top: {{ $bracketOutgoingDirection === 'down' ? '50%' : 'calc(50% - '.$bracketOutgoingHalfHeightRem.'rem)' }};
+                        height: {{ $bracketOutgoingHalfHeightRem }}rem;
+                    "
+                ></span>
+            @endif
+
+            <div class="grid gap-1">
+                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 rounded border px-2 py-1 text-[10px] leading-tight {{ $player1Won ? 'border-amber-400/40 bg-amber-500/14 font-semibold text-slate-50' : 'border-slate-800/90 bg-slate-900/70 text-slate-200' }}">
+                    <span class="truncate">{{ $player1Name }}</span>
+                    <span class="text-right text-[9px] font-semibold {{ $player1Won ? 'text-amber-100' : 'text-slate-400' }}">{{ $player1Metric }}</span>
+                </div>
+                <div class="grid grid-cols-[minmax(0,1fr)_2.15rem] items-center gap-2 rounded border px-2 py-1 text-[10px] leading-tight {{ $player2Won ? 'border-amber-400/40 bg-amber-500/14 font-semibold text-slate-50' : 'border-slate-800/90 bg-slate-900/70 text-slate-300' }}">
+                    <span class="truncate">{{ $player2Name }}</span>
+                    <span class="text-right text-[9px] font-semibold {{ $player2Won ? 'text-amber-100' : 'text-slate-400' }}">{{ $player2Metric }}</span>
+                </div>
+            </div>
+        </button>
+    </div>
+@else
+    <div>
         <button
             type="button"
             data-workspace-match-open
@@ -100,13 +154,32 @@
                 @endif
             </p>
         </button>
-    @endif
+    </div>
+@endif
 
-    <template id="{{ $matchTemplateId }}">
+    <template id="{{ $matchTemplateId }}" data-match-modal-title="{{ $matchLabel }}" data-match-modal-subtitle="{{ $roundLabel }}">
         @php
             $player1Participant = $participantDecks->get($match->player1_id);
             $player2Participant = $match->player2_id ? $participantDecks->get($match->player2_id) : null;
             $usesRegisteredDecks = $selectedEvent->usesLockedDecks() || $match->stage === 'single_elim';
+            $matchWinThreshold = $selectedEvent->battleWinThresholdForStage($round->stage, $round->matches->count());
+            $battleSlotCount = $selectedEvent->maxBattleSlotsForThreshold($matchWinThreshold);
+            $isReopenedMatch = (int) old('match_id', 0) === $match->id;
+            $formValue = fn (string $key, mixed $default = null) => $isReopenedMatch ? old($key, $default) : $default;
+            $matchErrorMessages = $isReopenedMatch
+                ? collect(array_merge(
+                    ['match_scores', 'match_deck', 'match_players', 'player2_id'],
+                    collect(range(1, $battleSlotCount))->flatMap(fn (int $slot) => [
+                        "result_{$slot}",
+                        "result_type_{$slot}",
+                    ])->all(),
+                    ['player1_bey1', 'player1_bey2', 'player1_bey3', 'player2_bey1', 'player2_bey2', 'player2_bey3']
+                ))
+                    ->map(fn (string $key) => $errors->first($key))
+                    ->filter()
+                    ->unique()
+                    ->values()
+                : collect();
         @endphp
         <article class="space-y-4">
             <div class="flex items-start justify-between gap-3">
@@ -184,6 +257,14 @@
                     <input type="hidden" name="round_number" value="{{ $round->round_number }}">
                     <input type="hidden" name="match_number" value="{{ $match->match_number }}">
 
+                    @if ($matchErrorMessages->isNotEmpty())
+                        <div class="border border-rose-500/45 bg-rose-500/10 px-3 py-2">
+                            @foreach ($matchErrorMessages as $message)
+                                <p class="text-[11px] text-rose-200">{{ $message }}</p>
+                            @endforeach
+                        </div>
+                    @endif
+
                     @if ($usesRegisteredDecks)
                         <div class="grid gap-3 xl:grid-cols-2">
                             @foreach ([
@@ -192,7 +273,6 @@
                             ] as $deckInfo)
                                 <div class="border border-slate-800 bg-slate-900/60 px-3 py-2">
                                     <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">{{ $deckInfo['label'] }} Registered Deck</p>
-                                    <p class="mt-1 text-sm text-slate-100">{{ $deckInfo['participant']?->deck_name ?: 'Deck needed' }}</p>
                                     <p class="mt-1 text-sm text-slate-300">{{ $deckInfo['participant'] ? implode(', ', $deckInfo['participant']->registeredBeys()) : 'No deck registered yet.' }}</p>
                                 </div>
                             @endforeach
@@ -207,7 +287,7 @@
                                             <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Bey {{ $beySlot }}</span>
                                             <input
                                                 name="player{{ $slot }}_bey{{ $beySlot }}"
-                                                value="{{ $match->{'player'.$slot.'_bey'.$beySlot} }}"
+                                                value="{{ $formValue('player'.$slot.'_bey'.$beySlot, $match->{'player'.$slot.'_bey'.$beySlot}) }}"
                                                 class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
                                             >
                                         </label>
@@ -219,27 +299,27 @@
 
                     <div>
                         <p class="text-sm font-semibold text-slate-100">Battle Results</p>
-                        <p class="mt-1 text-xs text-slate-500">Spin = 1, Burst = 2, Over = 2, Extreme = 3.</p>
+                        <p class="mt-1 text-xs text-slate-500">First to {{ $matchWinThreshold }} points. Spin = 1, Burst = 2, Over = 2, Extreme = 3.</p>
                         <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                            @foreach (range(1, 7) as $slot)
+                            @foreach (range(1, $battleSlotCount) as $slot)
                                 <div class="grid gap-2 border border-slate-800 bg-slate-900/45 p-3">
                                     <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Battle {{ $slot }}</p>
                                     <label class="grid gap-1">
                                         <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Winner</span>
                                         <select name="result_{{ $slot }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
                                             <option value="">-</option>
-                                            <option value="1" @selected((string) $match->{'result_'.$slot} === '1')>{{ $player1Name }}</option>
-                                            <option value="2" @selected((string) $match->{'result_'.$slot} === '2')>{{ $player2Name }}</option>
+                                            <option value="1" @selected((string) $formValue('result_'.$slot, $match->{'result_'.$slot}) === '1')>{{ $player1Name }}</option>
+                                            <option value="2" @selected((string) $formValue('result_'.$slot, $match->{'result_'.$slot}) === '2')>{{ $player2Name }}</option>
                                         </select>
                                     </label>
                                     <label class="grid gap-1">
                                         <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Finish</span>
                                         <select name="result_type_{{ $slot }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
                                             <option value="">-</option>
-                                            <option value="spin" @selected($match->{'result_type_'.$slot} === 'spin')>Spin (1 pt)</option>
-                                            <option value="burst" @selected($match->{'result_type_'.$slot} === 'burst')>Burst (2 pts)</option>
-                                            <option value="over" @selected($match->{'result_type_'.$slot} === 'over')>Over (2 pts)</option>
-                                            <option value="extreme" @selected($match->{'result_type_'.$slot} === 'extreme')>Extreme (3 pts)</option>
+                                            <option value="spin" @selected($formValue('result_type_'.$slot, $match->{'result_type_'.$slot}) === 'spin')>Spin (1 pt)</option>
+                                            <option value="burst" @selected($formValue('result_type_'.$slot, $match->{'result_type_'.$slot}) === 'burst')>Burst (2 pts)</option>
+                                            <option value="over" @selected($formValue('result_type_'.$slot, $match->{'result_type_'.$slot}) === 'over')>Over (2 pts)</option>
+                                            <option value="extreme" @selected($formValue('result_type_'.$slot, $match->{'result_type_'.$slot}) === 'extreme')>Extreme (3 pts)</option>
                                         </select>
                                     </label>
                                 </div>
@@ -252,4 +332,3 @@
             @endif
         </article>
     </template>
-</div>

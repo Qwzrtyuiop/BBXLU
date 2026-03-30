@@ -49,6 +49,10 @@ class EventController extends Controller
 
     public function update(Request $request, Event $event): RedirectResponse
     {
+        if ($redirect = $this->ensureEventDetailsEditable($request, $event)) {
+            return $redirect;
+        }
+
         $data = $this->validateEventData($request);
         $creator = $this->resolveCreator($data['created_by_nickname']);
         $event->update($this->buildEventPayload($data, $creator->id, $event));
@@ -59,10 +63,10 @@ class EventController extends Controller
 
     public function activate(Request $request, Event $event): RedirectResponse
     {
-        if ($event->status !== 'upcoming') {
+        if (! in_array($event->status, ['upcoming', 'finished'], true)) {
             return $this->redirectTarget($request, 'events.edit', [$event], $event)
                 ->withErrors([
-                    'active_event' => 'Only upcoming events can be set as active.',
+                    'active_event' => 'Only upcoming or finished events can be set as active.',
                 ]);
         }
 
@@ -113,13 +117,31 @@ class EventController extends Controller
             ->with('status', $status);
     }
 
+    public function regenerateAutomaticResultsAndAwards(Request $request, Event $event, BracketService $bracketService): RedirectResponse
+    {
+        try {
+            $bracketService->regenerateAutomaticResultsAndAwards($event);
+        } catch (RuntimeException $exception) {
+            return $this->redirectTarget($request, 'events.show', [$event], $event)
+                ->withErrors([
+                    'awards' => $exception->getMessage(),
+                ]);
+        }
+
+        return $this->redirectTarget($request, 'events.show', [$event], $event)
+            ->with('status', 'Automatic placements and awards regenerated.');
+    }
+
     public function storeParticipant(Request $request, Event $event): RedirectResponse
     {
+        if ($redirect = $this->ensureParticipantChangesAllowed($request, $event)) {
+            return $redirect;
+        }
+
         $data = $request->validate([
             'nickname' => ['nullable', 'string', 'max:255'],
             'selected_nicknames' => ['nullable', 'array'],
             'selected_nicknames.*' => ['nullable', 'string', 'max:255'],
-            'deck_name' => [Rule::requiredIf(fn () => $event->usesLockedDecks()), 'nullable', 'string', 'max:255'],
             'deck_bey1' => [Rule::requiredIf(fn () => $event->usesLockedDecks()), 'nullable', 'string', 'max:255'],
             'deck_bey2' => [Rule::requiredIf(fn () => $event->usesLockedDecks()), 'nullable', 'string', 'max:255'],
             'deck_bey3' => [Rule::requiredIf(fn () => $event->usesLockedDecks()), 'nullable', 'string', 'max:255'],
@@ -143,7 +165,7 @@ class EventController extends Controller
 
         if (count($nicknames) > 1 && $hasDeckInput) {
             return back()->withErrors([
-                'deck_name' => 'Deck registration can only be saved when adding one player at a time.',
+                'deck_bey1' => 'Deck registration can only be saved when adding one player at a time.',
             ])->withInput();
         }
 
@@ -213,7 +235,6 @@ class EventController extends Controller
         }
 
         $data = $request->validate([
-            'deck_name' => ['required', 'string', 'max:255'],
             'deck_bey1' => ['required', 'string', 'max:255'],
             'deck_bey2' => ['required', 'string', 'max:255'],
             'deck_bey3' => ['required', 'string', 'max:255'],
@@ -227,6 +248,10 @@ class EventController extends Controller
 
     public function destroyParticipant(Request $request, Event $event, Player $player): RedirectResponse
     {
+        if ($redirect = $this->ensureParticipantChangesAllowed($request, $event)) {
+            return $redirect;
+        }
+
         if (! $this->isEventParticipant($event->id, $player->id)) {
             return $this->redirectTarget($request, 'events.show', [$event], $event)
                 ->with('status', 'Participant is not in this event.');
@@ -343,7 +368,7 @@ class EventController extends Controller
 
     public function storeMatch(Request $request, Event $event, BracketService $bracketService): RedirectResponse
     {
-        $data = $request->validate([
+        $validationRules = [
             'match_id' => ['nullable', 'exists:matches,id'],
             'event_round_id' => ['nullable', 'exists:event_rounds,id'],
             'stage' => ['nullable', 'in:swiss,single_elim'],
@@ -360,21 +385,18 @@ class EventController extends Controller
             'player2_bey1' => ['nullable', 'string', 'max:255'],
             'player2_bey2' => ['nullable', 'string', 'max:255'],
             'player2_bey3' => ['nullable', 'string', 'max:255'],
-            'result_1' => ['nullable', 'integer', 'in:1,2'],
-            'result_2' => ['nullable', 'integer', 'in:1,2'],
-            'result_3' => ['nullable', 'integer', 'in:1,2'],
-            'result_4' => ['nullable', 'integer', 'in:1,2'],
-            'result_5' => ['nullable', 'integer', 'in:1,2'],
-            'result_6' => ['nullable', 'integer', 'in:1,2'],
-            'result_7' => ['nullable', 'integer', 'in:1,2'],
-            'result_type_1' => [Rule::requiredIf(fn () => filled($request->input('result_1'))), 'nullable', 'in:spin,burst,over,extreme'],
-            'result_type_2' => [Rule::requiredIf(fn () => filled($request->input('result_2'))), 'nullable', 'in:spin,burst,over,extreme'],
-            'result_type_3' => [Rule::requiredIf(fn () => filled($request->input('result_3'))), 'nullable', 'in:spin,burst,over,extreme'],
-            'result_type_4' => [Rule::requiredIf(fn () => filled($request->input('result_4'))), 'nullable', 'in:spin,burst,over,extreme'],
-            'result_type_5' => [Rule::requiredIf(fn () => filled($request->input('result_5'))), 'nullable', 'in:spin,burst,over,extreme'],
-            'result_type_6' => [Rule::requiredIf(fn () => filled($request->input('result_6'))), 'nullable', 'in:spin,burst,over,extreme'],
-            'result_type_7' => [Rule::requiredIf(fn () => filled($request->input('result_7'))), 'nullable', 'in:spin,burst,over,extreme'],
-        ]);
+        ];
+
+        foreach (range(1, EventMatch::MAX_BATTLE_SLOTS) as $slot) {
+            $validationRules["result_{$slot}"] = ['nullable', 'integer', 'in:1,2'];
+            $validationRules["result_type_{$slot}"] = [
+                Rule::requiredIf(fn () => filled($request->input("result_{$slot}"))),
+                'nullable',
+                'in:spin,burst,over,extreme',
+            ];
+        }
+
+        $data = $request->validate($validationRules);
 
         $match = ! empty($data['match_id'])
             ? EventMatch::query()->findOrFail($data['match_id'])
@@ -414,17 +436,18 @@ class EventController extends Controller
             }
         }
 
+        $stage = $eventRound?->stage
+            ?? ($data['stage'] ?? $match->stage)
+            ?? ($event->usesSwissBracket() && (int) ($data['round_number'] ?? $match->round_number ?? 1) <= (int) $event->swiss_rounds ? 'swiss' : 'single_elim');
+        $threshold = $this->matchWinThreshold($event, $eventRound, $match, $stage);
+
         try {
-            $summary = $this->matchSummaryFromRequest($event, $data, $isBye);
+            $summary = $this->matchSummaryFromRequest($event, $data, $isBye, $threshold);
         } catch (RuntimeException $exception) {
             return back()->withErrors([
                 'match_scores' => $exception->getMessage(),
             ])->withInput();
         }
-
-        $stage = $eventRound?->stage
-            ?? ($data['stage'] ?? $match->stage)
-            ?? ($event->usesSwissBracket() && (int) ($data['round_number'] ?? $match->round_number ?? 1) <= (int) $event->swiss_rounds ? 'swiss' : 'single_elim');
 
         try {
             $resolvedBeys = [
@@ -441,7 +464,7 @@ class EventController extends Controller
             ])->withInput();
         }
 
-        $match->fill([
+        $matchPayload = [
             'event_id' => $event->id,
             'event_round_id' => $eventRound?->id ?? $match->event_round_id,
             'stage' => $stage,
@@ -460,21 +483,17 @@ class EventController extends Controller
             'player2_bey1' => $resolvedBeys['player2_bey1'],
             'player2_bey2' => $resolvedBeys['player2_bey2'],
             'player2_bey3' => $resolvedBeys['player2_bey3'],
-            'result_1' => $summary['results'][0],
-            'result_2' => $summary['results'][1],
-            'result_3' => $summary['results'][2],
-            'result_4' => $summary['results'][3],
-            'result_5' => $summary['results'][4],
-            'result_6' => $summary['results'][5],
-            'result_7' => $summary['results'][6],
-            'result_type_1' => $summary['results'][0] !== null ? ($data['result_type_1'] ?? null) : null,
-            'result_type_2' => $summary['results'][1] !== null ? ($data['result_type_2'] ?? null) : null,
-            'result_type_3' => $summary['results'][2] !== null ? ($data['result_type_3'] ?? null) : null,
-            'result_type_4' => $summary['results'][3] !== null ? ($data['result_type_4'] ?? null) : null,
-            'result_type_5' => $summary['results'][4] !== null ? ($data['result_type_5'] ?? null) : null,
-            'result_type_6' => $summary['results'][5] !== null ? ($data['result_type_6'] ?? null) : null,
-            'result_type_7' => $summary['results'][6] !== null ? ($data['result_type_7'] ?? null) : null,
-        ]);
+        ];
+
+        foreach (range(1, EventMatch::MAX_BATTLE_SLOTS) as $slot) {
+            $resultIndex = $slot - 1;
+            $matchPayload["result_{$slot}"] = $summary['results'][$resultIndex] ?? null;
+            $matchPayload["result_type_{$slot}"] = ($summary['results'][$resultIndex] ?? null) !== null
+                ? ($data["result_type_{$slot}"] ?? null)
+                : null;
+        }
+
+        $match->fill($matchPayload);
         $match->save();
 
         $statusMessage = $match->wasRecentlyCreated ? 'Match recorded.' : 'Match updated.';
@@ -486,7 +505,7 @@ class EventController extends Controller
 
                 if ($round->status === 'completed') {
                     try {
-                        $autoAdvanceStatus = $bracketService->advanceSwissAfterRoundCompletion($round);
+                        $autoAdvanceStatus = $bracketService->advanceBracketAfterRoundCompletion($round);
                     } catch (RuntimeException $exception) {
                         $bracketService->refreshEventStatus($event->fresh('rounds.matches'));
 
@@ -662,8 +681,7 @@ class EventController extends Controller
 
     private function hasDeckRegistrationInput(array $data): bool
     {
-        return filled($data['deck_name'] ?? null)
-            || filled($data['deck_bey1'] ?? null)
+        return filled($data['deck_bey1'] ?? null)
             || filled($data['deck_bey2'] ?? null)
             || filled($data['deck_bey3'] ?? null);
     }
@@ -671,7 +689,6 @@ class EventController extends Controller
     private function participantDeckPayload(array $data): array
     {
         return [
-            'deck_name' => trim((string) ($data['deck_name'] ?? '')),
             'deck_bey1' => trim((string) ($data['deck_bey1'] ?? '')),
             'deck_bey2' => trim((string) ($data['deck_bey2'] ?? '')),
             'deck_bey3' => trim((string) ($data['deck_bey3'] ?? '')),
@@ -681,7 +698,7 @@ class EventController extends Controller
     private function applyParticipantDeckRegistration(EventParticipant $participant, array $deckPayload): void
     {
         $participant->forceFill([
-            'deck_name' => $deckPayload['deck_name'],
+            'deck_name' => null,
             'deck_bey1' => $deckPayload['deck_bey1'],
             'deck_bey2' => $deckPayload['deck_bey2'],
             'deck_bey3' => $deckPayload['deck_bey3'],
@@ -713,10 +730,8 @@ class EventController extends Controller
         return $manualValue;
     }
 
-    private function matchSummaryFromRequest(Event $event, array $data, bool $isBye): array
+    private function matchSummaryFromRequest(Event $event, array $data, bool $isBye, int $threshold): array
     {
-        $threshold = $event->battleWinThreshold();
-
         if ($isBye) {
             return [
                 'player2_id' => null,
@@ -725,41 +740,90 @@ class EventController extends Controller
                 'winner_id' => (int) $data['player1_id'],
                 'status' => 'completed',
                 'is_bye' => true,
-                'results' => array_fill(0, 7, null),
+                'results' => array_fill(0, EventMatch::MAX_BATTLE_SLOTS, null),
             ];
         }
 
-        $results = collect(range(1, 7))
+        $results = collect(range(1, EventMatch::MAX_BATTLE_SLOTS))
             ->map(fn (int $index) => $data["result_{$index}"] ?? null)
+            ->all();
+        $resultTypes = collect(range(1, EventMatch::MAX_BATTLE_SLOTS))
+            ->map(fn (int $index) => $data["result_type_{$index}"] ?? null)
             ->all();
 
         if (collect($results)->filter()->isEmpty()) {
-            $results = $this->legacyMatchResultsFromScores($data, $threshold);
+            return $this->legacyMatchSummaryFromScores($data, $threshold);
         }
 
-        $player1Score = collect($results)->filter(fn ($value) => $value === 1)->count();
-        $player2Score = collect($results)->filter(fn ($value) => $value === 2)->count();
+        $scoredResult = $this->scoredMatchResultSummary($results, $resultTypes, $threshold, $event->match_format);
+
+        return [
+            'player2_id' => (int) $data['player2_id'],
+            'player1_score' => $scoredResult['player1_score'],
+            'player2_score' => $scoredResult['player2_score'],
+            'winner_id' => $scoredResult['player1_score'] > $scoredResult['player2_score']
+                ? (int) $data['player1_id']
+                : (int) $data['player2_id'],
+            'status' => 'completed',
+            'is_bye' => false,
+            'results' => $scoredResult['results'],
+        ];
+    }
+
+    private function scoredMatchResultSummary(array $results, array $resultTypes, int $threshold, int $matchFormat): array
+    {
+        $player1Score = 0;
+        $player2Score = 0;
+        $trimmedResults = array_fill(0, count($results), null);
+        $encounteredBlank = false;
+        $matchFinishedAt = null;
+
+        foreach (array_keys($results) as $index) {
+            $winner = $results[$index] ?? null;
+
+            if ($winner === null) {
+                $encounteredBlank = true;
+                continue;
+            }
+
+            if ($encounteredBlank) {
+                throw new RuntimeException('Battle results must be filled in order without gaps.');
+            }
+
+            if ($matchFinishedAt !== null) {
+                throw new RuntimeException("Stop entering battles after a player reaches at least {$threshold} points.");
+            }
+
+            $trimmedResults[$index] = $winner;
+            $points = EventMatch::finishTypePoints($resultTypes[$index] ?? null);
+
+            if ((int) $winner === 1) {
+                $player1Score += $points;
+            } else {
+                $player2Score += $points;
+            }
+
+            if (max($player1Score, $player2Score) >= $threshold) {
+                $matchFinishedAt = $index;
+            }
+        }
 
         if ($player1Score === $player2Score) {
             throw new RuntimeException('Matches cannot end in a tie.');
         }
 
         if (max($player1Score, $player2Score) < $threshold) {
-            throw new RuntimeException("A match result must reach {$threshold} wins in a best-of-{$event->match_format} set.");
+            throw new RuntimeException("A match result must reach at least {$threshold} points.");
         }
 
         return [
-            'player2_id' => (int) $data['player2_id'],
             'player1_score' => $player1Score,
             'player2_score' => $player2Score,
-            'winner_id' => $player1Score > $player2Score ? (int) $data['player1_id'] : (int) $data['player2_id'],
-            'status' => 'completed',
-            'is_bye' => false,
-            'results' => array_pad(array_slice($results, 0, 7), 7, null),
+            'results' => $trimmedResults,
         ];
     }
 
-    private function legacyMatchResultsFromScores(array $data, int $threshold): array
+    private function legacyMatchSummaryFromScores(array $data, int $threshold): array
     {
         $player1Score = (int) ($data['player1_score'] ?? 0);
         $player2Score = (int) ($data['player2_score'] ?? 0);
@@ -769,13 +833,44 @@ class EventController extends Controller
         }
 
         if (max($player1Score, $player2Score) < $threshold) {
-            throw new RuntimeException("Winner score must reach {$threshold} for a best-of-7 match.");
+            throw new RuntimeException("Winner score must reach at least {$threshold} points.");
         }
 
-        return array_pad(array_merge(
-            array_fill(0, $player1Score, 1),
-            array_fill(0, $player2Score, 2),
-        ), 7, null);
+        return [
+            'player2_id' => (int) $data['player2_id'],
+            'player1_score' => $player1Score,
+            'player2_score' => $player2Score,
+            'winner_id' => $player1Score > $player2Score ? (int) $data['player1_id'] : (int) $data['player2_id'],
+            'status' => 'completed',
+            'is_bye' => false,
+            'results' => $this->legacyMatchResultsFromScores($player1Score, $player2Score),
+        ];
+    }
+
+    private function legacyMatchResultsFromScores(int $player1Score, int $player2Score): array
+    {
+        $winnerSlot = $player1Score > $player2Score ? 1 : 2;
+        $winnerScore = max($player1Score, $player2Score);
+        $loserScore = min($player1Score, $player2Score);
+        $loserSlot = $winnerSlot === 1 ? 2 : 1;
+
+        return array_pad(array_slice(array_merge(
+            array_fill(0, $loserScore, $loserSlot),
+            array_fill(0, $winnerScore, $winnerSlot),
+        ), 0, EventMatch::MAX_BATTLE_SLOTS), EventMatch::MAX_BATTLE_SLOTS, null);
+    }
+
+    private function matchWinThreshold(Event $event, ?EventRound $eventRound, EventMatch $match, ?string $stage): int
+    {
+        if (! $eventRound && $match->event_round_id) {
+            $eventRound = $match->round()->with('matches')->first();
+        }
+
+        $roundMatchCount = $eventRound
+            ? ($eventRound->relationLoaded('matches') ? $eventRound->matches->count() : $eventRound->matches()->count())
+            : null;
+
+        return $event->battleWinThresholdForStage($stage, $roundMatchCount);
     }
 
     private function redirectTarget(
@@ -827,5 +922,29 @@ class EventController extends Controller
         return in_array($panel, ['overview', 'events', 'workspace', 'players'], true)
             ? $panel
             : 'overview';
+    }
+
+    private function ensureEventDetailsEditable(Request $request, Event $event): ?RedirectResponse
+    {
+        if (! $event->hasStarted()) {
+            return null;
+        }
+
+        return $this->redirectTarget($request, 'events.edit', [$event], $event)
+            ->withErrors([
+                'event_locked' => 'Event details are locked once bracket play has started.',
+            ]);
+    }
+
+    private function ensureParticipantChangesAllowed(Request $request, Event $event): ?RedirectResponse
+    {
+        if (! $event->hasStarted()) {
+            return null;
+        }
+
+        return $this->redirectTarget($request, 'events.show', [$event], $event)
+            ->withErrors([
+                'participants' => 'Participants are locked once bracket play has started.',
+            ]);
     }
 }

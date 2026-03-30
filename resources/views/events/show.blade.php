@@ -19,7 +19,6 @@
                     @if ($event->usesSwissBracket())
                         - {{ $event->swiss_rounds }} Swiss rounds - Top {{ $event->top_cut_size }}
                     @endif
-                    - Best of {{ $event->match_format }}
                 </p>
                 @if ($event->location)
                     <p class="mt-1 text-sm text-slate-400">Location: {{ $event->location }}</p>
@@ -222,6 +221,10 @@
                                                 </div>
                                             </div>
                                         @else
+                                            @php
+                                                $matchWinThreshold = $event->battleWinThresholdForStage($round->stage, $round->matches->count());
+                                                $battleSlotCount = $event->maxBattleSlotsForThreshold($matchWinThreshold);
+                                            @endphp
                                             <form action="{{ route('events.matches.store', $event) }}" method="POST" class="mt-4 grid gap-4">
                                                 @csrf
                                                 <input type="hidden" name="match_id" value="{{ $match->id }}">
@@ -263,9 +266,9 @@
 
                                                 <div>
                                                     <p class="text-sm font-semibold text-slate-100">Battle Results</p>
-                                                    <p class="mt-1 text-xs text-slate-500">Set each battle winner and finish type. Spin = 1, Burst = 2, Over = 2, Extreme = 3.</p>
+                                                    <p class="mt-1 text-xs text-slate-500">First to {{ $matchWinThreshold }} points. Spin = 1, Burst = 2, Over = 2, Extreme = 3.</p>
                                                     <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-7">
-                                                        @foreach (range(1, 7) as $slot)
+                                                        @foreach (range(1, $battleSlotCount) as $slot)
                                                             <div class="grid gap-2 rounded-lg border border-slate-800 bg-slate-900/45 p-3">
                                                                 <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Battle {{ $slot }}</p>
                                                                 <label class="grid gap-1">

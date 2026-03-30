@@ -1,4 +1,4 @@
-<x-layouts.app :title="'Dashboard | BBXLU'" :fullScreen="true" :hideTopSelectors="true" :hideFrameHeader="true">
+<x-layouts.app :title="'Dashboard | BBXLU'" :fullScreen="true" :hideTopSelectors="true" :hideFrameHeader="true" :hideGlobalFeedback="true">
     @php
         $currentFocus = $ongoingTournament;
         $currentFocusLink = $currentFocus ? route('dashboard', ['panel' => 'workspace']) : route('dashboard', ['panel' => 'events']);
@@ -19,8 +19,26 @@
         $overviewQueueEvents = $overviewEvent
             ? $upcomingEvents->reject(fn ($event) => $event->id === $overviewEvent->id)
             : $upcomingEvents;
-        $canRegisterOverviewEvent = $overviewEvent && $overviewEvent->status === 'upcoming';
-        $showRegisterModal = $activePanel === 'overview' && ($errors->has('nickname') || $errors->has('selected_nicknames') || $errors->has('selected_nicknames.*') || $errors->has('deck_name'));
+        $overviewEventStarted = $overviewEvent?->hasStarted() ?? false;
+        $selectedEventStarted = $selectedEvent?->hasStarted() ?? false;
+        $canRegisterOverviewEvent = $overviewEvent && $overviewEvent->status === 'upcoming' && ! $overviewEventStarted;
+        $hasParticipantRegistrationErrors = $errors->has('nickname')
+            || $errors->has('selected_nicknames')
+            || $errors->has('selected_nicknames.*');
+        $showRegisterModal = $activePanel === 'overview' && $hasParticipantRegistrationErrors;
+        $showWorkspaceRegisterModal = $activePanel === 'workspace'
+            && $selectedEvent
+            && ! $selectedEventStarted
+            && ! $selectedEvent->usesLockedDecks()
+            && $hasParticipantRegistrationErrors;
+        $hasDeckRegistrationErrors = $errors->has('deck_bey1')
+            || $errors->has('deck_bey2')
+            || $errors->has('deck_bey3');
+        $showDeckRegistrationModal = $activePanel === 'workspace'
+            && $selectedEvent
+            && $selectedDeckRegistrationTargets->isNotEmpty()
+            && $hasDeckRegistrationErrors;
+        $oldDeckPlayerId = (int) old('deck_player_id', 0);
         $oldSelectedNicknames = collect(old('selected_nicknames', []))
             ->map(fn ($nickname) => trim((string) $nickname))
             ->filter()
@@ -30,6 +48,10 @@
         $toolbarBaseClasses = 'flex w-full min-h-[3.6rem] items-start justify-between border px-2.5 py-2 text-left transition';
         $toolbarActiveClasses = 'border-cyan-300/70 bg-cyan-500/12 text-cyan-100 shadow-[0_12px_24px_rgba(34,211,238,0.16)]';
         $toolbarInactiveClasses = 'border-slate-800/90 bg-slate-950/72 text-slate-300';
+        $dashboardErrors = collect($errors->all())
+            ->filter()
+            ->unique()
+            ->values();
     @endphp
 
     <div
@@ -77,6 +99,30 @@
                     </form>
                 </div>
             </div>
+
+            @if (session('status') || $dashboardErrors->isNotEmpty())
+                <div class="mt-2.5 grid gap-1.5">
+                    @if (session('status'))
+                        <div class="border border-emerald-500/40 bg-emerald-500/12 px-3 py-2 text-[12px] text-emerald-100">
+                            {{ session('status') }}
+                        </div>
+                    @endif
+
+                    @if ($dashboardErrors->isNotEmpty())
+                        <div class="border border-rose-500/40 bg-rose-500/12 px-3 py-2 text-[12px] text-rose-100">
+                            <p class="font-semibold uppercase tracking-[0.12em] text-[10px] text-rose-200">Action Needed</p>
+                            <div class="mt-1 space-y-1">
+                                @foreach ($dashboardErrors->take(5) as $error)
+                                    <p>{{ $error }}</p>
+                                @endforeach
+                                @if ($dashboardErrors->count() > 5)
+                                    <p class="text-[11px] text-rose-200/80">More issues are shown in the relevant form.</p>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            @endif
         </section>
 
         <section class="grid min-h-0 gap-2.5 xl:grid-cols-[11.25rem_minmax(0,1fr)]">
@@ -127,7 +173,7 @@
                     <article class="border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
                         <p class="type-kicker text-[10px] text-cyan-300/75">Latest Winner</p>
                         @if ($latestChampion && $latestEvent)
-                            <p class="type-title mt-1.5 line-clamp-2 text-sm text-slate-100">{{ $latestChampion->player->user->nickname }}</p>
+                            <p class="type-title mt-1.5 line-clamp-2 text-sm text-slate-100">{{ $latestChampion->player?->user?->nickname ?? 'Unknown player' }}</p>
                             <p class="type-label mt-1.5 line-clamp-2 text-[9px] text-slate-500">{{ $latestEvent->title }}</p>
                         @else
                             <p class="type-body mt-1.5 text-xs text-slate-400">Waiting for a finished event.</p>
@@ -208,6 +254,10 @@
                                     View Event Tools
                                 </a>
                             </div>
+
+                            @if ($overviewEventStarted)
+                                <p class="mt-2 text-[11px] text-rose-300">Registration is locked because bracket play has already started for this event.</p>
+                            @endif
                         @else
                             <p class="type-body mt-3 text-sm text-slate-400">Create an event first so the overview can track the next schedule and player registration.</p>
                             <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label mt-3 inline-flex border border-amber-400/70 bg-amber-400/12 px-2.5 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
@@ -295,108 +345,11 @@
             </div>
 
             @if ($canRegisterOverviewEvent && ! $overviewEvent->usesLockedDecks())
-                <div
-                    data-register-modal
-                    data-register-open-on-load="{{ $showRegisterModal ? 'true' : 'false' }}"
-                    class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/86 px-4 py-6"
-                >
-                    <div class="w-full max-w-3xl border border-cyan-400/35 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.98)_100%)] p-4 shadow-[0_28px_72px_rgba(2,6,23,0.72)]">
-                        <div class="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-3">
-                            <div class="min-w-0">
-                                <p class="type-kicker text-[10px] text-cyan-300/75">Register Players</p>
-                                <h3 class="type-headline mt-1 text-lg text-cyan-100">{{ $overviewEvent->title }}</h3>
-                                <p class="type-body mt-1 text-[12px] text-slate-400">Select registered users or add a new nickname, then confirm the list below.</p>
-                            </div>
-
-                            <button type="button" data-register-modal-close class="type-label border border-slate-700 px-2.5 py-1 text-[9px] text-slate-100 transition hover:border-rose-400 hover:text-rose-200">
-                                Close
-                            </button>
-                        </div>
-
-                        <form action="{{ route('events.participants.store', $overviewEvent) }}" method="POST" data-register-form class="mt-3 grid gap-3">
-                            @csrf
-                            <input type="hidden" name="dashboard_redirect" value="1">
-                            <input type="hidden" name="dashboard_panel" value="overview">
-                            <input type="hidden" name="dashboard_event_id" value="{{ $overviewEvent->id }}">
-
-                            <div class="grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,.92fr)]">
-                                <div class="grid gap-3">
-                                    <section class="border border-slate-800/80 bg-slate-950/55 p-3">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <p class="type-title text-[13px] text-amber-100">Registered Users</p>
-                                            <span class="type-label text-[8px] text-slate-500">{{ $registerableUsers->count() }} available</span>
-                                        </div>
-
-                                        <label class="mt-2 grid gap-1">
-                                            <span class="text-xs text-slate-400">Select players</span>
-                                            <select data-register-existing multiple size="7" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
-                                                @forelse ($registerableUsers as $user)
-                                                    <option value="{{ $user->nickname }}">
-                                                        {{ $user->nickname }}@if (! $user->is_claimed) - auto account @endif
-                                                    </option>
-                                                @empty
-                                                    <option value="" disabled>No registered users yet</option>
-                                                @endforelse
-                                            </select>
-                                        </label>
-
-                                        <div class="mt-2 flex flex-wrap items-center gap-2">
-                                            <button type="button" data-register-existing-add class="type-label border border-amber-400/70 bg-amber-400/12 px-2.5 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
-                                                Add Selected
-                                            </button>
-                                            <p data-register-feedback class="text-[11px] text-slate-500">Choose one or more registered users.</p>
-                                        </div>
-                                    </section>
-
-                                    <section class="border border-slate-800/80 bg-slate-950/55 p-3">
-                                        <p class="type-title text-[13px] text-cyan-100">Add New User</p>
-                                        <label class="mt-2 grid gap-1">
-                                            <span class="text-xs text-slate-400">Nickname</span>
-                                            <input type="text" value="" data-register-new maxlength="255" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
-                                        </label>
-
-                                        <div class="mt-2 flex flex-wrap items-center gap-2">
-                                            <button type="button" data-register-new-add class="type-label border border-cyan-400/70 bg-cyan-400/10 px-2.5 py-1.5 text-[9px] text-cyan-100 transition hover:bg-cyan-400/18">
-                                                Add New Nickname
-                                            </button>
-                                            <p class="text-[11px] text-slate-500">New nicknames auto-create a user profile and player record.</p>
-                                        </div>
-                                    </section>
-                                </div>
-
-                                <section class="border border-slate-800/80 bg-slate-950/55 p-3">
-                                    <div class="flex items-center justify-between gap-2">
-                                        <p class="type-title text-[13px] text-fuchsia-100">Selected Players</p>
-                                        <span data-register-count class="type-label text-[8px] text-slate-500">{{ $oldSelectedNicknames->count() }} selected</span>
-                                    </div>
-
-                                    <div data-register-selected class="mt-2 min-h-[11rem] max-h-[15rem] space-y-1.5 overflow-y-auto no-scrollbar border border-dashed border-slate-800 bg-slate-950/40 p-2"></div>
-                                </section>
-                            </div>
-
-                            @if ($errors->has('nickname') || $errors->has('selected_nicknames') || $errors->has('selected_nicknames.*'))
-                                <p class="text-sm text-rose-300">
-                                    {{ $errors->first('nickname') ?: $errors->first('selected_nicknames') ?: $errors->first('selected_nicknames.*') }}
-                                </p>
-                            @endif
-
-                            <div data-register-hidden-inputs>
-                                @foreach ($oldSelectedNicknames as $nickname)
-                                    <input type="hidden" name="selected_nicknames[]" value="{{ $nickname }}">
-                                @endforeach
-                            </div>
-
-                            <div class="flex items-center justify-end gap-2 border-t border-slate-800/80 pt-3">
-                                <button type="button" data-register-modal-close class="type-label border border-slate-700 px-3 py-1.5 text-[9px] text-slate-100 transition hover:border-slate-500 hover:text-white">
-                                    Cancel
-                                </button>
-                                <button type="submit" data-register-submit @disabled($oldSelectedNicknames->isEmpty()) class="type-label border border-amber-400/70 bg-amber-400/12 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
-                                    Confirm Players
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                @include('dashboard.partials.register-participants-modal', [
+                    'registrationEvent' => $overviewEvent,
+                    'registrationPanel' => 'overview',
+                    'showRegistrationModal' => $showRegisterModal,
+                ])
             @endif
 
             @elseif ($activePanel === 'events')
@@ -404,16 +357,18 @@
                 <article class="min-h-0 overflow-y-auto no-scrollbar border border-amber-400/30 bg-[linear-gradient(160deg,rgba(251,191,36,0.08)_0%,rgba(2,6,23,0.92)_100%)] p-4">
                     <div class="flex items-center justify-between gap-2">
                         <div>
-                            <p class="type-kicker text-[10px] text-amber-300/75">{{ $selectedEvent ? 'Edit Mode' : 'Create Mode' }}</p>
-                            <h3 class="type-headline mt-1 text-xl text-amber-100">{{ $selectedEvent ? 'Edit Event' : 'Create Event' }}</h3>
+                            <p class="type-kicker text-[10px] text-amber-300/75">{{ $selectedEvent ? ($selectedEventStarted ? 'Locked Mode' : 'Edit Mode') : 'Create Mode' }}</p>
+                            <h3 class="type-headline mt-1 text-xl text-amber-100">{{ $selectedEvent ? ($selectedEventStarted ? 'Event Locked' : 'Edit Event') : 'Create Event' }}</h3>
                             <p class="type-body mt-1 text-xs text-slate-400">
-                                {{ $selectedEvent ? 'Updating the selected event from the directory.' : 'Fill out the form below to create a new event.' }}
+                                {{ $selectedEvent
+                                    ? ($selectedEventStarted ? 'This event has already started, so its details are now read-only.' : 'Updating the selected event from the directory.')
+                                    : 'Fill out the form below to create a new event.' }}
                             </p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             @if ($selectedEvent?->is_active)
                                 <span class="type-label border border-emerald-400/60 bg-emerald-500/10 px-2.5 py-1 text-[10px] text-emerald-100">Active Event</span>
-                            @elseif ($selectedEvent && $selectedEvent->status === 'upcoming')
+                            @elseif ($selectedEvent && in_array($selectedEvent->status, ['upcoming', 'finished'], true))
                                 <form action="{{ route('events.activate', $selectedEvent) }}" method="POST">
                                     @csrf
                                     <input type="hidden" name="dashboard_redirect" value="1">
@@ -442,8 +397,12 @@
                         <div class="border border-slate-800/80 bg-slate-950/55 px-3 py-2.5">
                             <p class="type-label text-[10px] text-slate-500">Form State</p>
                             @if ($selectedEvent)
-                                <p class="mt-1 text-sm text-slate-100">Editing: {{ $selectedEvent->title }}</p>
-                                <p class="mt-1 text-xs text-slate-400">Use Create New Event to clear the form and start a fresh entry.</p>
+                                <p class="mt-1 text-sm text-slate-100">{{ $selectedEventStarted ? 'Locked: '.$selectedEvent->title : 'Editing: '.$selectedEvent->title }}</p>
+                                <p class="mt-1 text-xs text-slate-400">
+                                    {{ $selectedEventStarted
+                                        ? 'Bracket play has started. Event details can no longer be changed.'
+                                        : 'Use Create New Event to clear the form and start a fresh entry.' }}
+                                </p>
                             @else
                                 <p class="mt-1 text-sm text-slate-100">Ready to create a new event.</p>
                                 <p class="mt-1 text-xs text-slate-400">Select an existing event from the directory only if you want to load it into edit mode.</p>
@@ -452,42 +411,37 @@
 
                         <label class="grid gap-1">
                             <span class="text-sm text-slate-300">Title</span>
-                            <input name="title" value="{{ old('title', $selectedEvent?->title) }}" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                            <input name="title" value="{{ old('title', $selectedEvent?->title) }}" required @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                         </label>
 
                         <label class="grid gap-1">
                             <span class="text-sm text-slate-300">Description</span>
-                            <textarea name="description" rows="3" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">{{ old('description', $selectedEvent?->description) }}</textarea>
+                            <textarea name="description" rows="3" @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">{{ old('description', $selectedEvent?->description) }}</textarea>
                         </label>
 
-                        <div class="grid gap-3 sm:grid-cols-2">
+                        <div class="grid gap-3">
                         <label class="grid gap-1">
                             <span class="text-sm text-slate-300">Bracket Type</span>
-                            <select name="bracket_type" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                            <select name="bracket_type" required @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                                     <option value="single_elim" @selected(old('bracket_type', $selectedEvent?->bracket_type ?? 'single_elim') === 'single_elim')>Single Elimination</option>
                                     <option value="swiss_single_elim" @selected(old('bracket_type', $selectedEvent?->bracket_type) === 'swiss_single_elim')>Swiss + Single Elimination</option>
                                 </select>
-                            </label>
-
-                            <label class="grid gap-1">
-                                <span class="text-sm text-slate-300">Best Of</span>
-                                <input value="7" disabled class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-slate-400">
                             </label>
                         </div>
 
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Swiss Rounds</span>
-                                <input type="number" min="1" max="12" name="swiss_rounds" value="{{ old('swiss_rounds', $selectedEvent?->swiss_rounds ?: 5) }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                                <input type="number" min="1" max="12" name="swiss_rounds" value="{{ old('swiss_rounds', $selectedEvent?->swiss_rounds ?: 5) }}" @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                             </label>
 
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Top Cut Size</span>
-                                <select name="top_cut_size" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                                <select name="top_cut_size" @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                                     @foreach ([2, 4, 8, 16, 32, 64] as $size)
                                         <option value="{{ $size }}" @selected((string) old('top_cut_size', $selectedEvent?->top_cut_size ?: 8) === (string) $size)>Top {{ $size }}</option>
                                     @endforeach
-                                </select>
+                                    </select>
                             </label>
                         </div>
 
@@ -500,11 +454,12 @@
                                     name="is_lock_deck"
                                     value="1"
                                     @checked((bool) old('is_lock_deck', $selectedEvent?->is_lock_deck))
-                                    class="mt-0.5 h-4 w-4 rounded border-slate-700 bg-slate-950 text-amber-400 focus:ring-amber-400"
+                                    @disabled($selectedEventStarted)
+                                    class="mt-0.5 h-4 w-4 rounded border-slate-700 bg-slate-950 text-amber-400 focus:ring-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                 <span>
                                     <span class="block text-sm text-slate-100">Lock deck from registration</span>
-                                    <span class="mt-1 block text-xs text-slate-500">When enabled, every player must register a deck name plus Beys 1-3 before round 1. When disabled, deck registration is only required before players enter single elimination.</span>
+                                    <span class="mt-1 block text-xs text-slate-500">When enabled, every player must register Beys 1-3 before round 1. When disabled, deck registration is only required before players enter single elimination.</span>
                                 </span>
                             </span>
                         </label>
@@ -512,7 +467,7 @@
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Event Type</span>
-                                <select name="event_type_id" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                                <select name="event_type_id" required @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                                     @foreach ($eventTypes as $type)
                                         <option value="{{ $type->id }}" @selected((string) old('event_type_id', $selectedEvent?->event_type_id) === (string) $type->id)>{{ $type->name }}</option>
                                     @endforeach
@@ -521,19 +476,19 @@
 
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Date</span>
-                                <input type="date" name="date" value="{{ old('date', optional($selectedEvent?->date)->format('Y-m-d')) }}" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                                <input type="date" name="date" value="{{ old('date', optional($selectedEvent?->date)->format('Y-m-d')) }}" required @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                             </label>
                         </div>
 
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Location</span>
-                                <input name="location" value="{{ old('location', $selectedEvent?->location) }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                                <input name="location" value="{{ old('location', $selectedEvent?->location) }}" @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                             </label>
 
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Status</span>
-                                <select name="status" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                                <select name="status" required @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                                     <option value="upcoming" @selected(old('status', $selectedEvent?->status ?? 'upcoming') === 'upcoming')>Upcoming</option>
                                     <option value="finished" @selected(old('status', $selectedEvent?->status) === 'finished')>Finished</option>
                                 </select>
@@ -542,21 +497,22 @@
 
                         <label class="grid gap-1">
                             <span class="text-sm text-slate-300">Created By (nickname)</span>
-                            <input name="created_by_nickname" value="{{ old('created_by_nickname', $selectedEvent?->creator?->nickname ?? auth()->user()->nickname) }}" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                            <input name="created_by_nickname" value="{{ old('created_by_nickname', $selectedEvent?->creator?->nickname ?? auth()->user()->nickname) }}" required @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                         </label>
 
                         <div class="flex flex-wrap gap-2 pt-1">
-                            <button class="type-label border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-[10px] text-amber-100 transition hover:bg-amber-500/20">
+                            <button @disabled($selectedEventStarted) class="type-label border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-[10px] text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                                 {{ $selectedEvent ? 'Update Event' : 'Create Event' }}
                             </button>
-                            <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label border border-slate-700 px-4 py-2 text-[10px] text-slate-100 transition hover:border-amber-400 hover:text-amber-200">
-                                Create New Event
-                            </a>
                         </div>
                     </form>
                 </article>
 
                 <article class="min-h-0 overflow-y-auto no-scrollbar border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.18)_0%,rgba(2,6,23,0.92)_100%)] p-4">
+                    @php
+                        $upcomingAdminEvents = $adminEvents->where('status', 'upcoming')->values();
+                        $finishedAdminEvents = $adminEvents->where('status', 'finished')->values();
+                    @endphp
                     <div class="flex items-center justify-between gap-2">
                         <div>
                             <p class="type-kicker text-[10px] text-cyan-300/75">Event Directory</p>
@@ -565,51 +521,55 @@
                         <span class="type-label text-[10px] text-slate-500">{{ $adminEvents->count() }} total</span>
                     </div>
 
-                    <div class="mt-4 space-y-3">
-                        @forelse ($adminEvents as $event)
-                            <article class="border {{ $selectedEvent && $selectedEvent->id === $event->id ? 'border-amber-400/60' : ($event->is_active ? 'border-emerald-400/50' : 'border-slate-800/80') }} bg-slate-950/65 p-3">
-                                <div class="flex items-center justify-between gap-2">
-                                    <p class="type-label text-[10px] text-slate-500">{{ $event->status }}</p>
-                                    <div class="flex flex-wrap items-center justify-end gap-1">
-                                        @if ($event->is_lock_deck)
-                                            <span class="type-label border border-amber-400/60 bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-100">Lock Deck</span>
-                                        @endif
-                                        @if ($event->is_active)
-                                            <span class="type-label border border-emerald-400/60 bg-emerald-500/10 px-2 py-0.5 text-[9px] text-emerald-100">Active</span>
-                                        @endif
-                                    </div>
+                    <div class="mt-4 grid items-start gap-4 xl:grid-cols-2">
+                        <section class="grid min-h-0 content-start self-start gap-3">
+                            <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                                <div>
+                                    <p class="type-title text-sm text-amber-100">Upcoming</p>
+                                    <p class="type-body mt-1 text-[11px] text-slate-500">Active and scheduled events.</p>
                                 </div>
-                                <p class="type-title mt-1 break-words text-sm text-slate-100">{{ $event->title }}</p>
-                                <p class="type-label mt-1 text-[9px] text-slate-500">{{ $event->date->format('d M Y') }} - {{ $event->eventType->name }} - {{ $event->participants_count }} players</p>
-                                <p class="type-body mt-2 text-xs text-slate-400">{{ \Illuminate\Support\Str::limit($event->description ?: ($event->location ?: 'No description.'), 88) }}</p>
+                                <span class="type-label text-[10px] text-slate-500">{{ $upcomingAdminEvents->count() }}</span>
+                            </div>
 
-                                <div class="mt-3 flex flex-wrap gap-2">
-                                    <a href="{{ route('dashboard', ['panel' => 'events', 'event' => $event->id]) }}" class="type-label border border-slate-700 px-2.5 py-1 text-[10px] text-slate-100 transition hover:border-cyan-400 hover:text-cyan-200">Edit Here</a>
-                                    @if ($event->is_active)
-                                        <a href="{{ route('dashboard', ['panel' => 'workspace']) }}" class="type-label border border-slate-700 px-2.5 py-1 text-[10px] text-slate-100 transition hover:border-amber-400 hover:text-amber-200">Workspace</a>
-                                    @elseif ($event->status === 'upcoming')
-                                        <form action="{{ route('events.activate', $event) }}" method="POST">
-                                            @csrf
-                                            <input type="hidden" name="dashboard_redirect" value="1">
-                                            <input type="hidden" name="dashboard_panel" value="events">
-                                            <input type="hidden" name="dashboard_event_id" value="{{ $event->id }}">
-                                            <button class="type-label border border-emerald-500/60 px-2.5 py-1 text-[10px] text-emerald-100 transition hover:bg-emerald-500/10">Set Active</button>
-                                        </form>
-                                    @endif
-                                    <form action="{{ route('events.destroy', $event) }}" method="POST" onsubmit="return confirm('Delete this event and all related records?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <input type="hidden" name="dashboard_redirect" value="1">
-                                        <input type="hidden" name="dashboard_panel" value="events">
-                                        <button class="type-label border border-rose-500/60 px-2.5 py-1 text-[10px] text-rose-200 transition hover:bg-rose-500/10">Delete</button>
-                                    </form>
+                            <div class="space-y-3">
+                                @forelse ($upcomingAdminEvents as $event)
+                                    @include('dashboard.partials.event-directory-card', ['event' => $event])
+                                @empty
+                                    <p class="type-body text-sm text-slate-400">No upcoming events.</p>
+                                @endforelse
+                            </div>
+                        </section>
+
+                        <section class="grid min-h-0 content-start self-start gap-3">
+                            <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                                <div>
+                                    <p class="type-title text-sm text-cyan-100">Finished</p>
+                                    <p class="type-body mt-1 text-[11px] text-slate-500">Completed events and archived brackets.</p>
                                 </div>
-                            </article>
-                        @empty
-                            <p class="type-body text-sm text-slate-400">No events yet.</p>
-                        @endforelse
+                                <span class="type-label text-[10px] text-slate-500">{{ $finishedAdminEvents->count() }}</span>
+                            </div>
+
+                            <div class="space-y-3">
+                                @forelse ($finishedAdminEvents as $event)
+                                    @include('dashboard.partials.event-directory-card', ['event' => $event])
+                                @empty
+                                    <p class="type-body text-sm text-slate-400">No finished events yet.</p>
+                                @endforelse
+                            </div>
+                        </section>
                     </div>
                 </article>
+
+                <div class="hidden">
+                    @foreach ($adminEvents as $event)
+                        <template id="event-preview-template-{{ $event->id }}">
+                            @include('dashboard.partials.event-preview-modal-body', [
+                                'event' => $event,
+                                'preview' => $adminEventPreviews->get($event->id, []),
+                            ])
+                        </template>
+                    @endforeach
+                </div>
             </div>
 
             @elseif ($activePanel === 'workspace')
@@ -631,37 +591,40 @@
                             ? 'Locked Deck Registry'
                             : ($selectedEvent->usesSwissBracket() ? 'Top Cut Deck Registry' : 'Elimination Deck Registry');
                         $deckRegistrationDescription = $selectedEvent->usesLockedDecks()
-                            ? 'Every player needs a deck name and Beys 1-3 before the event can start.'
+                            ? 'Every player needs Beys 1-3 registered before the event can start.'
                             : ($selectedEvent->usesSwissBracket()
-                                ? 'Register the single-elimination deck lists for qualified players before generating top cut.'
-                                : 'Register the elimination deck lists before generating round 1.');
+                                ? 'Register Beys 1-3 for qualified players before generating top cut.'
+                                : 'Register Beys 1-3 before generating round 1.');
+                        $autoAccountParticipantCount = $selectedEventParticipants->filter(fn ($participant) => ! $participant->player->user->is_claimed)->count();
+                        $deckReadyParticipantCount = $selectedEventParticipants->filter(fn ($participant) => $participant->hasRegisteredDeck())->count();
                     @endphp
                     <div class="min-h-0 overflow-y-auto no-scrollbar">
                         @include('dashboard.partials.workspace-bracket-control')
                     </div>
 
                     <div class="grid min-h-0 content-start gap-2.5 overflow-y-auto no-scrollbar">
-                        <article class="flex min-h-0 flex-col overflow-hidden border border-amber-400/25 bg-[linear-gradient(180deg,rgba(251,191,36,0.05)_0%,rgba(2,6,23,0.9)_100%)] p-2.5">
+                        <article class="border border-amber-400/25 bg-[linear-gradient(180deg,rgba(251,191,36,0.05)_0%,rgba(2,6,23,0.9)_100%)] p-2.5">
                             <div class="flex items-center justify-between gap-2">
                                 <h4 class="type-title text-sm text-amber-100">Participants</h4>
                                 <span class="type-label text-[9px] text-slate-500">{{ $selectedEventParticipants->count() }} total</span>
                             </div>
 
-                            <form action="{{ route('events.participants.store', $selectedEvent) }}" method="POST" class="mt-2.5 grid gap-2.5">
-                                @csrf
-                                <input type="hidden" name="dashboard_redirect" value="1">
+                            @if ($selectedEventStarted)
+                                <div class="mt-2.5 grid gap-2 border border-rose-500/30 bg-rose-500/[0.06] p-3">
+                                    <p class="text-[11px] text-rose-200">Participant registration is locked because bracket play has already started for this event.</p>
+                                    <p class="text-[11px] text-slate-500">You can still review the roster and continue match or deck operations, but the participant list can no longer change.</p>
+                                </div>
+                            @elseif ($selectedEvent->usesLockedDecks())
+                                <form action="{{ route('events.participants.store', $selectedEvent) }}" method="POST" class="mt-2.5 grid gap-2.5">
+                                    @csrf
+                                    <input type="hidden" name="dashboard_redirect" value="1">
                                     <input type="hidden" name="dashboard_panel" value="workspace">
                                     <input type="hidden" name="dashboard_event_id" value="{{ $selectedEvent->id }}">
                                     <label class="grid gap-1">
                                         <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Nickname</span>
                                         <input name="nickname" value="{{ old('nickname') }}" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
                                     </label>
-                                @if ($selectedEvent->usesLockedDecks())
                                     <div class="grid gap-2 sm:grid-cols-2">
-                                        <label class="grid gap-1 sm:col-span-2">
-                                            <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Deck Name</span>
-                                            <input name="deck_name" value="{{ old('deck_name') }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                        </label>
                                         <label class="grid gap-1">
                                             <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Bey 1</span>
                                             <input name="deck_bey1" value="{{ old('deck_bey1') }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
@@ -675,47 +638,49 @@
                                             <input name="deck_bey3" value="{{ old('deck_bey3') }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
                                         </label>
                                     </div>
-                                    <p class="text-xs text-slate-500">Locked-deck events register the player and deck in one step.</p>
-                                @endif
-                                @if ($errors->has('nickname') || $errors->has('selected_nicknames') || $errors->has('deck_name') || $errors->has('deck_bey1') || $errors->has('deck_bey2') || $errors->has('deck_bey3'))
-                                    <p class="text-xs text-rose-300">
-                                        {{ $errors->first('nickname') ?: $errors->first('selected_nicknames') ?: $errors->first('deck_name') ?: $errors->first('deck_bey1') ?: $errors->first('deck_bey2') ?: $errors->first('deck_bey3') }}
-                                    </p>
-                                @endif
-                                <button class="type-label w-fit border border-amber-500/70 bg-amber-500/10 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-500/20">Add Participant</button>
-                            </form>
-
-                            <div class="mt-3 min-h-0 flex-1 space-y-1.5 overflow-y-auto no-scrollbar">
-                                @forelse ($selectedEventParticipants as $participant)
-                                    <div class="flex items-center justify-between gap-2 border border-slate-800/80 bg-slate-950/65 px-3 py-1.5 text-[13px]">
-                                        <div class="min-w-0">
-                                            <p class="truncate">{{ $participant->player->user->nickname }}</p>
-                                            <div class="mt-1 flex flex-wrap gap-1">
-                                                @if ($participant->hasRegisteredDeck())
-                                                    <span class="type-label border border-cyan-500/50 bg-cyan-500/10 px-2 py-0.5 text-[9px] text-cyan-100">{{ $participant->deck_name }}</span>
-                                                @elseif ($participant->requiresDeckFor($selectedEvent, $requiresDeckRegistrationNow))
-                                                    <span class="type-label border border-rose-500/50 bg-rose-500/10 px-2 py-0.5 text-[9px] text-rose-200">Deck needed</span>
-                                                @endif
-                                                @if (! $participant->player->user->is_claimed)
-                                                    <span class="type-label text-[9px] text-amber-300">auto account</span>
-                                                @endif
-                                            </div>
-                                            @if ($participant->hasRegisteredDeck())
-                                                <p class="type-body mt-1 text-[11px] text-slate-400">{{ implode(', ', $participant->registeredBeys()) }}</p>
-                                            @endif
-                                        </div>
-                                        <form action="{{ route('events.participants.destroy', [$selectedEvent, $participant->player]) }}" method="POST" onsubmit="return confirm('Remove this participant from the event?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <input type="hidden" name="dashboard_redirect" value="1">
-                                            <input type="hidden" name="dashboard_panel" value="workspace">
-                                            <input type="hidden" name="dashboard_event_id" value="{{ $selectedEvent->id }}">
-                                            <button class="type-label border border-rose-500/60 px-2 py-1 text-[9px] text-rose-200 transition hover:bg-rose-500/10">Remove</button>
-                                        </form>
+                                    <p class="text-xs text-slate-500">Locked-deck events register the player and Beys 1-3 in one step.</p>
+                                    @if ($errors->has('nickname') || $errors->has('selected_nicknames') || $errors->has('deck_bey1') || $errors->has('deck_bey2') || $errors->has('deck_bey3'))
+                                        <p class="text-xs text-rose-300">
+                                            {{ $errors->first('nickname') ?: $errors->first('selected_nicknames') ?: $errors->first('deck_bey1') ?: $errors->first('deck_bey2') ?: $errors->first('deck_bey3') }}
+                                        </p>
+                                    @endif
+                                    <button class="type-label w-fit border border-amber-500/70 bg-amber-500/10 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-500/20">Add Participant</button>
+                                </form>
+                            @else
+                                <div class="mt-2.5 grid gap-2 border border-slate-800/80 bg-slate-950/55 p-3">
+                                    <p class="text-[11px] text-slate-400">Use the same multi-add flow as Overview to pull registered users or create new nicknames before the bracket starts.</p>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button type="button" data-register-modal-open class="type-label border border-amber-400/70 bg-amber-400/12 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
+                                            Register Players
+                                        </button>
+                                        <span class="text-[11px] text-slate-500">{{ $registerableUsers->count() }} available</span>
                                     </div>
-                                @empty
-                                    <p class="type-body text-sm text-slate-400">No participants yet.</p>
-                                @endforelse
+                                    @if ($errors->has('nickname') || $errors->has('selected_nicknames') || $errors->has('selected_nicknames.*'))
+                                        <p class="text-xs text-rose-300">
+                                            {{ $errors->first('nickname') ?: $errors->first('selected_nicknames') ?: $errors->first('selected_nicknames.*') }}
+                                        </p>
+                                    @endif
+                                </div>
+                            @endif
+
+                            <div class="mt-3 grid gap-2 border border-slate-800/80 bg-slate-950/55 p-3">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="grid gap-1 text-[11px] text-slate-400">
+                                        <p>{{ $selectedEventParticipants->count() }} total participants</p>
+                                        <p>{{ $deckReadyParticipantCount }} deck ready / {{ $autoAccountParticipantCount }} auto accounts</p>
+                                    </div>
+                                    <button type="button" data-participants-modal-open class="type-label border border-amber-400/70 bg-amber-400/12 px-3 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
+                                        Open Participants
+                                    </button>
+                                </div>
+
+                                <p class="text-[11px] text-slate-500">
+                                    {{ $selectedEventStarted
+                                        ? 'Open the modal to review the locked roster and participant deck status.'
+                                        : ($selectedEventParticipants->isNotEmpty()
+                                            ? 'Open the modal to view the full roster, deck tags, and removal controls.'
+                                            : 'No participants yet. Add players, then open the modal when the roster is ready.') }}
+                                </p>
                             </div>
                         </article>
 
@@ -729,46 +694,22 @@
                             <p class="mt-2 text-[11px] text-slate-400">{{ $deckRegistrationDescription }}</p>
 
                             @if ($requiresDeckRegistrationNow)
-                                <div class="mt-3 max-h-[18rem] space-y-2 overflow-y-auto no-scrollbar">
-                                    @foreach ($selectedDeckRegistrationTargets as $participant)
-                                        <form action="{{ route('events.participants.deck.store', [$selectedEvent, $participant->player]) }}" method="POST" class="grid gap-2 border border-slate-800/80 bg-slate-950/65 p-2.5">
-                                            @csrf
-                                            <input type="hidden" name="dashboard_redirect" value="1">
-                                            <input type="hidden" name="dashboard_panel" value="workspace">
-                                            <input type="hidden" name="dashboard_event_id" value="{{ $selectedEvent->id }}">
-
-                                            <div class="flex items-center justify-between gap-2">
-                                                <p class="text-sm font-semibold text-slate-100">{{ $participant->player->user->nickname }}</p>
-                                                <span class="type-label text-[9px] {{ $participant->hasRegisteredDeck() ? 'text-cyan-200' : 'text-rose-200' }}">
-                                                    {{ $participant->hasRegisteredDeck() ? 'Ready' : 'Needs deck' }}
-                                                </span>
-                                            </div>
-
-                                            <label class="grid gap-1">
-                                                <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Deck Name</span>
-                                                <input name="deck_name" value="{{ old('deck_name', $participant->deck_name) }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                            </label>
-
-                                            <div class="grid gap-2 sm:grid-cols-3">
-                                                <label class="grid gap-1">
-                                                    <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Bey 1</span>
-                                                    <input name="deck_bey1" value="{{ old('deck_bey1', $participant->deck_bey1) }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                                </label>
-                                                <label class="grid gap-1">
-                                                    <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Bey 2</span>
-                                                    <input name="deck_bey2" value="{{ old('deck_bey2', $participant->deck_bey2) }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                                </label>
-                                                <label class="grid gap-1">
-                                                    <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Bey 3</span>
-                                                    <input name="deck_bey3" value="{{ old('deck_bey3', $participant->deck_bey3) }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-2.5 py-1.5 text-[13px] text-slate-100 focus:border-amber-500 focus:outline-none">
-                                                </label>
-                                            </div>
-
-                                            <button class="type-label w-fit border border-cyan-500/60 bg-cyan-500/10 px-3 py-1.5 text-[9px] text-cyan-100 transition hover:bg-cyan-500/20">
-                                                Save Deck
-                                            </button>
-                                        </form>
-                                    @endforeach
+                                <div class="mt-3 grid gap-2 border border-slate-800/80 bg-slate-950/55 p-3">
+                                    <div class="grid gap-1 text-[11px] text-slate-400">
+                                        <p>{{ $selectedDeckRegistrationTargets->count() }} players in registry</p>
+                                        <p>{{ $selectedDeckRegistrationTargets->count() - $selectedMissingDeckRegistrations->count() }} ready / {{ $selectedMissingDeckRegistrations->count() }} missing</p>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <button type="button" data-deck-modal-open class="type-label border border-cyan-500/60 bg-cyan-500/10 px-3 py-1.5 text-[9px] text-cyan-100 transition hover:bg-cyan-500/20">
+                                            Open Deck Registry
+                                        </button>
+                                        <span class="text-[11px] text-slate-500">Register or update Beys 1-3 in the modal.</span>
+                                    </div>
+                                    @if ($hasDeckRegistrationErrors)
+                                        <p class="text-xs text-rose-300">
+                                            {{ $errors->first('deck_bey1') ?: $errors->first('deck_bey2') ?: $errors->first('deck_bey3') }}
+                                        </p>
+                                    @endif
                                 </div>
                             @else
                                 <p class="mt-3 text-sm text-slate-500">
@@ -795,11 +736,33 @@
                             </div>
                         </article>
                     </div>
+
+                    @if (! $selectedEvent->usesLockedDecks())
+                        @include('dashboard.partials.register-participants-modal', [
+                            'registrationEvent' => $selectedEvent,
+                            'registrationPanel' => 'workspace',
+                            'showRegistrationModal' => $showWorkspaceRegisterModal,
+                        ])
+                    @endif
+                    @include('dashboard.partials.participants-modal', [
+                        'participantEvent' => $selectedEvent,
+                        'participantEventParticipants' => $selectedEventParticipants,
+                        'participantDeckGateActive' => $requiresDeckRegistrationNow,
+                    ])
+                    @if ($requiresDeckRegistrationNow)
+                        @include('dashboard.partials.deck-registration-modal', [
+                            'deckRegistrationEvent' => $selectedEvent,
+                            'deckRegistrationTargets' => $selectedDeckRegistrationTargets,
+                            'deckRegistrationDescription' => $deckRegistrationDescription,
+                            'showDeckRegistrationModal' => $showDeckRegistrationModal,
+                            'oldDeckPlayerId' => $oldDeckPlayerId,
+                        ])
+                    @endif
                 @else
                     <div class="flex h-full items-center justify-center border border-slate-800/80 bg-slate-950/55 p-6">
                         <div class="text-center">
                             <p class="type-title text-lg text-slate-100">No active event</p>
-                            <p class="type-body mt-2 text-sm text-slate-400">Open the Events panel and set one upcoming event as active to unlock the workspace.</p>
+                            <p class="type-body mt-2 text-sm text-slate-400">Open the Events panel and set an event as active to unlock the workspace.</p>
                             <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label mt-4 inline-flex border border-amber-500/70 bg-amber-500/10 px-3 py-2 text-[10px] text-amber-100 transition hover:bg-amber-500/20">Go to Events</a>
                         </div>
                     </div>
@@ -887,5 +850,21 @@
             @endif
             </section>
         </section>
+    </div>
+
+    <div data-event-modal class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
+        <div class="max-h-[92vh] w-full max-w-[96rem] overflow-y-auto border border-cyan-400/60 bg-slate-950 p-4 shadow-[0_24px_64px_rgba(2,6,23,0.72)] sm:p-5">
+            <div class="mb-4 flex items-center justify-between gap-3">
+                <div>
+                    <p class="type-kicker text-xs text-cyan-300">Event View</p>
+                    <p class="mt-1 text-[11px] text-slate-500">Read-only workspace preview for this event.</p>
+                </div>
+                <button type="button" data-event-modal-close class="inline-flex h-9 w-9 items-center justify-center border border-slate-700 text-slate-300 transition hover:border-rose-500 hover:text-rose-200">
+                    x
+                </button>
+            </div>
+
+            <div data-event-modal-body></div>
+        </div>
     </div>
 </x-layouts.app>

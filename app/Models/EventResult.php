@@ -20,11 +20,13 @@ class EventResult extends Model
 
     public function event(): BelongsTo
     {
-        return $this->belongsTo(Event::class);
+        return $this->belongsTo(Event::class)->withDefault([
+            'title' => 'Unknown event',
+        ]);
     }
 
     public function player(): BelongsTo
     {
-        return $this->belongsTo(Player::class);
+        return $this->belongsTo(Player::class)->withDefault();
     }
 }

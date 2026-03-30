@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
 use App\Models\Player;
 use App\Models\User;
 use App\Services\EventOverviewService;
 use App\Services\RankingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
@@ -20,6 +22,7 @@ class DashboardController extends Controller
             $activePanel = 'overview';
         }
 
+        $dashboardData = $eventOverviewService->dashboardData($selectedEventId, $activePanel);
         $leaderboard = collect();
         $players = collect();
         $playersWithoutResults = collect();
@@ -27,23 +30,30 @@ class DashboardController extends Controller
 
         if ($activePanel === 'overview') {
             $leaderboard = $rankingService->leaderboard(5);
-            $registerableUsers = User::query()
-                ->whereNotNull('nickname')
-                ->orderByRaw('LOWER(nickname)')
-                ->get(['id', 'nickname', 'is_claimed']);
+            $overviewEvent = $dashboardData['ongoingTournament']
+                ?? $dashboardData['upcomingEvents']->first()
+                ?? $dashboardData['selectedEvent']
+                ?? $dashboardData['latestEvent'];
+            $registerableUsers = $this->registerableUsersForEvent($overviewEvent);
+        }
+
+        if ($activePanel === 'workspace') {
+            $registerableUsers = $this->registerableUsersForEvent($dashboardData['selectedEvent']);
         }
 
         if ($activePanel === 'players') {
             $leaderboard = $rankingService->leaderboard();
             $players = Player::query()
                 ->with('user')
-                ->orderBy('id')
                 ->get();
+            $players = $players
+                ->sortBy(fn (Player $player) => strtolower($player->user->nickname))
+                ->values();
             $playersWithoutResults = $rankingService->playersWithoutResults();
         }
 
         return view('dashboard', array_merge(
-            $eventOverviewService->dashboardData($selectedEventId, $activePanel),
+            $dashboardData,
             [
                 'activePanel' => $activePanel,
                 'leaderboard' => $leaderboard,
@@ -52,5 +62,20 @@ class DashboardController extends Controller
                 'registerableUsers' => $registerableUsers,
             ]
         ));
+    }
+
+    private function registerableUsersForEvent(?Event $event): Collection
+    {
+        if (! $event || $event->status !== 'upcoming' || $event->hasStarted()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereNotNull('nickname')
+            ->whereDoesntHave('player.eventParticipations', function ($participantQuery) use ($event) {
+                $participantQuery->where('event_id', $event->id);
+            })
+            ->orderByRaw('LOWER(nickname)')
+            ->get(['id', 'nickname', 'is_claimed']);
     }
 }

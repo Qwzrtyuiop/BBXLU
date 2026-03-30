@@ -20,7 +20,13 @@ class Player extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withDefault([
+            'nickname' => 'Unknown player',
+            'name' => 'Unknown player',
+            'email' => null,
+            'role' => 'user',
+            'is_claimed' => false,
+        ]);
     }
 
     public function events(): BelongsToMany

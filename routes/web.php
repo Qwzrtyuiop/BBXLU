@@ -40,4 +40,5 @@ Route::middleware(['auth', 'admin'])->group(function (): void {
     Route::post('/events/{event}/matches', [EventController::class, 'storeMatch'])->name('events.matches.store');
     Route::delete('/events/{event}/matches/{match}', [EventController::class, 'destroyMatch'])->name('events.matches.destroy');
     Route::post('/events/{event}/bracket/generate', [EventController::class, 'generateBracketRound'])->name('events.bracket.generate');
+    Route::post('/events/{event}/outcomes/regenerate', [EventController::class, 'regenerateAutomaticResultsAndAwards'])->name('events.outcomes.regenerate');
 });

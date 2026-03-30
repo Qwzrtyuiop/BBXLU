@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Award;
 use App\Models\Event;
+use App\Models\EventAward;
 use App\Models\EventMatch;
 use App\Models\EventParticipant;
 use App\Models\EventType;
@@ -121,11 +122,10 @@ class EventWorkflowTest extends TestCase
 
         $this->post(route('events.participants.store', $event), [
             'nickname' => 'locked-a',
-        ])->assertSessionHasErrors(['deck_name', 'deck_bey1', 'deck_bey2', 'deck_bey3']);
+        ])->assertSessionHasErrors(['deck_bey1', 'deck_bey2', 'deck_bey3']);
 
         $response = $this->post(route('events.participants.store', $event), [
             'nickname' => 'locked-a',
-            'deck_name' => 'Phoenix Rush',
             'deck_bey1' => 'Phoenix',
             'deck_bey2' => 'Dran',
             'deck_bey3' => 'Wizard',
@@ -135,7 +135,7 @@ class EventWorkflowTest extends TestCase
         $this->assertDatabaseHas('event_participants', [
             'event_id' => $event->id,
             'player_id' => Player::query()->whereHas('user', fn ($query) => $query->where('nickname', 'locked-a'))->value('id'),
-            'deck_name' => 'Phoenix Rush',
+            'deck_name' => null,
             'deck_bey1' => 'Phoenix',
             'deck_bey2' => 'Dran',
             'deck_bey3' => 'Wizard',
@@ -255,13 +255,11 @@ class EventWorkflowTest extends TestCase
             'result_1' => 1,
             'result_type_1' => 'spin',
             'result_2' => 2,
-            'result_type_2' => 'burst',
+            'result_type_2' => 'spin',
             'result_3' => 1,
-            'result_type_3' => 'spin',
+            'result_type_3' => 'burst',
             'result_4' => 1,
-            'result_type_4' => 'extreme',
-            'result_5' => 1,
-            'result_type_5' => 'spin',
+            'result_type_4' => 'spin',
             'round_number' => 1,
         ]);
 
@@ -272,8 +270,152 @@ class EventWorkflowTest extends TestCase
             'player1_score' => 4,
             'player2_score' => 1,
             'result_type_1' => 'spin',
-            'result_type_2' => 'burst',
-            'result_type_4' => 'extreme',
+            'result_type_2' => 'spin',
+            'result_type_3' => 'burst',
+            'result_type_4' => 'spin',
+        ]);
+    }
+
+    public function test_match_can_finish_before_all_seven_battles_are_filled(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'fast-finish-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Fast Finish Cup',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-03-29',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $player1 = Player::query()->create([
+            'user_id' => User::factory()->create(['nickname' => 'rapid'])->id,
+        ]);
+        $player2 = Player::query()->create([
+            'user_id' => User::factory()->create(['nickname' => 'steady'])->id,
+        ]);
+
+        EventParticipant::query()->create([
+            'event_id' => $event->id,
+            'player_id' => $player1->id,
+            'deck_name' => 'Rapid Deck',
+            'deck_bey1' => 'Phoenix',
+            'deck_bey2' => 'Dran',
+            'deck_bey3' => 'Wizard',
+            'deck_registered_at' => now(),
+        ]);
+        EventParticipant::query()->create([
+            'event_id' => $event->id,
+            'player_id' => $player2->id,
+            'deck_name' => 'Steady Deck',
+            'deck_bey1' => 'Knight',
+            'deck_bey2' => 'Shark',
+            'deck_bey3' => 'Leon',
+            'deck_registered_at' => now(),
+        ]);
+
+        $response = $this->post(route('events.matches.store', $event), [
+            'player1_id' => $player1->id,
+            'player2_id' => $player2->id,
+            'result_1' => 1,
+            'result_type_1' => 'burst',
+            'result_2' => 2,
+            'result_type_2' => 'spin',
+            'result_3' => 1,
+            'result_type_3' => 'over',
+            'round_number' => 1,
+        ]);
+
+        $response->assertRedirect($this->workspaceRoute($event));
+        $this->assertDatabaseHas('matches', [
+            'event_id' => $event->id,
+            'winner_id' => $player1->id,
+            'player1_score' => 4,
+            'player2_score' => 1,
+            'result_1' => 1,
+            'result_2' => 2,
+            'result_3' => 1,
+            'result_4' => null,
+            'result_5' => null,
+            'result_6' => null,
+            'result_7' => null,
+        ]);
+    }
+
+    public function test_match_can_finish_above_four_points_when_final_battle_overshoots(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'overshoot-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Overshoot Cup',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-03-30',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $player1 = Player::query()->create([
+            'user_id' => User::factory()->create(['nickname' => 'impact'])->id,
+        ]);
+        $player2 = Player::query()->create([
+            'user_id' => User::factory()->create(['nickname' => 'guard'])->id,
+        ]);
+
+        EventParticipant::query()->create([
+            'event_id' => $event->id,
+            'player_id' => $player1->id,
+            'deck_name' => 'Impact Deck',
+            'deck_bey1' => 'Phoenix',
+            'deck_bey2' => 'Dran',
+            'deck_bey3' => 'Wizard',
+            'deck_registered_at' => now(),
+        ]);
+        EventParticipant::query()->create([
+            'event_id' => $event->id,
+            'player_id' => $player2->id,
+            'deck_name' => 'Guard Deck',
+            'deck_bey1' => 'Knight',
+            'deck_bey2' => 'Shark',
+            'deck_bey3' => 'Leon',
+            'deck_registered_at' => now(),
+        ]);
+
+        $response = $this->post(route('events.matches.store', $event), [
+            'player1_id' => $player1->id,
+            'player2_id' => $player2->id,
+            'result_1' => 1,
+            'result_type_1' => 'burst',
+            'result_2' => 2,
+            'result_type_2' => 'spin',
+            'result_3' => 1,
+            'result_type_3' => 'extreme',
+            'round_number' => 1,
+        ]);
+
+        $response->assertRedirect($this->workspaceRoute($event));
+        $this->assertDatabaseHas('matches', [
+            'event_id' => $event->id,
+            'winner_id' => $player1->id,
+            'player1_score' => 5,
+            'player2_score' => 1,
+            'result_4' => null,
+            'result_5' => null,
+            'result_6' => null,
+            'result_7' => null,
         ]);
     }
 
@@ -313,21 +455,19 @@ class EventWorkflowTest extends TestCase
         $match = $event->fresh('matches')->matches->firstOrFail();
 
         $this->submitMatchResult($event, $match, [
-            [1, 'spin'],
             [1, 'burst'],
-            [2, 'over'],
-            [1, 'extreme'],
-            [1, 'spin'],
+            [2, 'spin'],
+            [1, 'over'],
         ])->assertRedirect($this->workspaceRoute($event));
 
         $standings = app(BracketService::class)->swissStandings($event->fresh());
         $player1Row = $standings->firstWhere('player.id', $player1->id);
         $player2Row = $standings->firstWhere('player.id', $player2->id);
 
-        $this->assertSame(7, $player1Row['battle_points']);
-        $this->assertSame(2, $player2Row['battle_points']);
-        $this->assertSame(5, $player1Row['points_diff']);
-        $this->assertSame(-5, $player2Row['points_diff']);
+        $this->assertSame(4, $player1Row['battle_points']);
+        $this->assertSame(1, $player2Row['battle_points']);
+        $this->assertSame(3, $player1Row['points_diff']);
+        $this->assertSame(-3, $player2Row['points_diff']);
     }
 
     public function test_single_elimination_round_generation_creates_first_round_matches(): void
@@ -383,6 +523,175 @@ class EventWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_single_elimination_auto_generates_the_next_round_after_semifinals_finish(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'auto-elim-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Auto Elim Bracket',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-14',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $players = collect(['alpha', 'beta', 'charlie', 'delta'])->map(function (string $nickname) use ($event) {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+                'deck_name' => strtoupper($nickname).' Deck',
+                'deck_bey1' => 'Bey A',
+                'deck_bey2' => 'Bey B',
+                'deck_bey3' => 'Bey C',
+                'deck_registered_at' => now(),
+            ]);
+
+            return $player;
+        });
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $semifinals = $event->fresh('matches')->matches
+            ->where('stage', 'single_elim')
+            ->where('round_number', 1)
+            ->sortBy('match_number')
+            ->values();
+
+        $this->submitMatchResult($event, $semifinals[0], [
+            [1, 'spin'],
+            [1, 'burst'],
+            [1, 'spin'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $response = $this->submitMatchResult($event, $semifinals[1], [
+            [2, 'spin'],
+            [2, 'burst'],
+            [2, 'spin'],
+        ]);
+
+        $response->assertRedirect($this->workspaceRoute($event));
+        $response->assertSessionHas('status', 'Match updated. Elimination round 2 generated.');
+
+        $this->assertDatabaseHas('event_rounds', [
+            'event_id' => $event->id,
+            'stage' => 'single_elim',
+            'round_number' => 2,
+        ]);
+
+        $finalMatch = EventMatch::query()
+            ->where('event_id', $event->id)
+            ->where('stage', 'single_elim')
+            ->where('round_number', 2)
+            ->firstOrFail();
+
+        $this->assertSame($players[0]->id, $finalMatch->player1_id);
+        $this->assertSame($players[2]->id, $finalMatch->player2_id);
+    }
+
+    public function test_seeded_single_elimination_bracket_uses_real_seed_order_and_auto_advances_byes(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'seeded-elim-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Seeded Elim Bracket',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-15',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $players = collect(['seed-1', 'seed-2', 'seed-3', 'seed-4', 'seed-5', 'seed-6'])->map(function (string $nickname) use ($event) {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+                'deck_name' => strtoupper($nickname).' Deck',
+                'deck_bey1' => 'Bey A',
+                'deck_bey2' => 'Bey B',
+                'deck_bey3' => 'Bey C',
+                'deck_registered_at' => now(),
+            ]);
+
+            return $player;
+        })->values();
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $roundOneMatches = EventMatch::query()
+            ->where('event_id', $event->id)
+            ->where('stage', 'single_elim')
+            ->where('round_number', 1)
+            ->orderBy('match_number')
+            ->get();
+
+        $this->assertCount(4, $roundOneMatches);
+
+        $this->assertSame($players[0]->id, $roundOneMatches[0]->player1_id);
+        $this->assertNull($roundOneMatches[0]->player2_id);
+        $this->assertTrue($roundOneMatches[0]->is_bye);
+
+        $this->assertSame($players[3]->id, $roundOneMatches[1]->player1_id);
+        $this->assertSame($players[4]->id, $roundOneMatches[1]->player2_id);
+        $this->assertFalse($roundOneMatches[1]->is_bye);
+
+        $this->assertSame($players[1]->id, $roundOneMatches[2]->player1_id);
+        $this->assertNull($roundOneMatches[2]->player2_id);
+        $this->assertTrue($roundOneMatches[2]->is_bye);
+
+        $this->assertSame($players[2]->id, $roundOneMatches[3]->player1_id);
+        $this->assertSame($players[5]->id, $roundOneMatches[3]->player2_id);
+        $this->assertFalse($roundOneMatches[3]->is_bye);
+
+        $this->submitMatchResult($event, $roundOneMatches[1], [
+            [1, 'spin'],
+            [1, 'burst'],
+            [1, 'spin'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $response = $this->submitMatchResult($event, $roundOneMatches[3], [
+            [2, 'spin'],
+            [2, 'burst'],
+            [2, 'spin'],
+        ]);
+
+        $response->assertRedirect($this->workspaceRoute($event));
+        $response->assertSessionHas('status', 'Match updated. Elimination round 2 generated.');
+
+        $roundTwoMatches = EventMatch::query()
+            ->where('event_id', $event->id)
+            ->where('stage', 'single_elim')
+            ->where('round_number', 2)
+            ->orderBy('match_number')
+            ->get();
+
+        $this->assertCount(2, $roundTwoMatches);
+        $this->assertSame($players[0]->id, $roundTwoMatches[0]->player1_id);
+        $this->assertSame($players[3]->id, $roundTwoMatches[0]->player2_id);
+        $this->assertSame($players[1]->id, $roundTwoMatches[1]->player1_id);
+        $this->assertSame($players[5]->id, $roundTwoMatches[1]->player2_id);
+    }
+
     public function test_completed_single_elimination_event_auto_generates_results_and_bird_king_award(): void
     {
         $this->actingAs($this->createAdmin());
@@ -427,8 +736,6 @@ class EventWorkflowTest extends TestCase
         $this->submitMatchResult($event, $finalMatch, [
             [1, 'spin'],
             [1, 'burst'],
-            [2, 'spin'],
-            [1, 'extreme'],
             [1, 'spin'],
         ])->assertRedirect($this->workspaceRoute($event));
 
@@ -446,6 +753,71 @@ class EventWorkflowTest extends TestCase
             'player_id' => $players[1]->id,
             'placement' => 2,
         ]);
+        $this->assertDatabaseHas('event_awards', [
+            'event_id' => $event->id,
+            'player_id' => $players[0]->id,
+            'award_id' => Award::query()->where('name', 'Bird King')->value('id'),
+        ]);
+    }
+
+    public function test_completed_event_can_regenerate_automatic_awards(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'regen-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Regenerate Finals',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-04',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $players = collect(['alpha', 'beta'])->map(function (string $nickname) use ($event) {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+                'deck_name' => strtoupper($nickname).' Deck',
+                'deck_bey1' => 'Bey A',
+                'deck_bey2' => 'Bey B',
+                'deck_bey3' => 'Bey C',
+                'deck_registered_at' => now(),
+            ]);
+
+            return $player;
+        });
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $finalMatch = $event->fresh('matches')->matches->firstOrFail();
+
+        $this->submitMatchResult($event, $finalMatch, [
+            [1, 'spin'],
+            [1, 'burst'],
+            [1, 'spin'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        EventAward::query()
+            ->where('event_id', $event->id)
+            ->delete();
+
+        $response = $this->post(route('events.outcomes.regenerate', $event), [
+            'dashboard_redirect' => 1,
+            'dashboard_panel' => 'workspace',
+            'dashboard_event_id' => $event->id,
+        ]);
+
+        $response->assertRedirect($this->workspaceRoute($event));
         $this->assertDatabaseHas('event_awards', [
             'event_id' => $event->id,
             'player_id' => $players[0]->id,
@@ -597,14 +969,12 @@ class EventWorkflowTest extends TestCase
             [1, 'spin'],
             [1, 'burst'],
             [1, 'spin'],
-            [1, 'extreme'],
         ])->assertRedirect($this->workspaceRoute($event));
 
         $response = $this->submitMatchResult($event, $roundOneMatches[1], [
             [2, 'spin'],
             [2, 'burst'],
             [1, 'spin'],
-            [2, 'extreme'],
             [2, 'spin'],
         ]);
 
@@ -659,14 +1029,12 @@ class EventWorkflowTest extends TestCase
             [1, 'spin'],
             [1, 'burst'],
             [1, 'spin'],
-            [1, 'extreme'],
         ])->assertRedirect($this->workspaceRoute($event));
 
         $response = $this->submitMatchResult($event, $swissMatches[1], [
             [1, 'spin'],
             [1, 'burst'],
             [1, 'spin'],
-            [1, 'extreme'],
         ]);
 
         $response->assertRedirect($this->workspaceRoute($event));
@@ -695,6 +1063,102 @@ class EventWorkflowTest extends TestCase
             'event_id' => $event->id,
             'stage' => 'single_elim',
             'round_number' => 1,
+        ]);
+    }
+
+    public function test_top_cut_final_requires_seven_points_and_records_finish_types(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'topcut-final-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Top Cut Final Threshold',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'swiss_single_elim',
+            'swiss_rounds' => 1,
+            'top_cut_size' => 2,
+            'match_format' => 7,
+            'date' => '2026-04-16',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        collect(['alpha', 'beta', 'charlie', 'delta'])->each(function (string $nickname) use ($event): void {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+            ]);
+        });
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $swissMatches = $event->fresh('matches')->matches->where('stage', 'swiss')->sortBy('match_number')->values();
+
+        $this->submitMatchResult($event, $swissMatches[0], [
+            [1, 'spin'],
+            [1, 'spin'],
+            [1, 'burst'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $this->submitMatchResult($event, $swissMatches[1], [
+            [1, 'spin'],
+            [2, 'spin'],
+            [1, 'burst'],
+            [1, 'spin'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        foreach (app(BracketService::class)->deckRegistrationTargets($event->fresh()) as $participant) {
+            $this->post(route('events.participants.deck.store', [$event, $participant->player]), [
+                'deck_name' => strtoupper($participant->player->user->nickname).' Top Cut',
+                'deck_bey1' => 'Phoenix',
+                'deck_bey2' => 'Dran',
+                'deck_bey3' => 'Wizard',
+            ])->assertRedirect($this->workspaceRoute($event));
+        }
+
+        $this->post(route('events.bracket.generate', $event))
+            ->assertRedirect($this->workspaceRoute($event));
+
+        $finalMatch = $event->fresh('matches')->matches->where('stage', 'single_elim')->firstOrFail();
+
+        $this->submitMatchResult($event, $finalMatch, [
+            [1, 'burst'],
+            [1, 'burst'],
+            [2, 'spin'],
+            [1, 'spin'],
+            [1, 'spin'],
+        ])->assertSessionHasErrors('match_scores');
+
+        $this->submitMatchResult($event, $finalMatch, [
+            [1, 'burst'],
+            [1, 'burst'],
+            [2, 'spin'],
+            [1, 'spin'],
+            [1, 'burst'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $this->assertDatabaseHas('matches', [
+            'id' => $finalMatch->id,
+            'player1_score' => 7,
+            'player2_score' => 1,
+            'result_1' => 1,
+            'result_type_1' => 'burst',
+            'result_2' => 1,
+            'result_type_2' => 'burst',
+            'result_3' => 2,
+            'result_type_3' => 'spin',
+            'result_4' => 1,
+            'result_type_4' => 'spin',
+            'result_5' => 1,
+            'result_type_5' => 'burst',
         ]);
     }
 
@@ -759,9 +1223,7 @@ class EventWorkflowTest extends TestCase
             'result_2' => 1,
             'result_type_2' => 'burst',
             'result_3' => 1,
-            'result_type_3' => 'extreme',
-            'result_4' => 1,
-            'result_type_4' => 'spin',
+            'result_type_3' => 'spin',
         ])->assertRedirect($this->workspaceRoute($event));
 
         $this->assertDatabaseHas('matches', [
@@ -775,7 +1237,7 @@ class EventWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_completed_swiss_event_auto_generates_results_and_swiss_awards(): void
+    public function test_completed_swiss_event_only_awards_swiss_champ_when_swiss_king_wins_top_cut(): void
     {
         $this->actingAs($this->createAdmin());
 
@@ -784,6 +1246,114 @@ class EventWorkflowTest extends TestCase
 
         $event = Event::query()->create([
             'title' => 'Auto Swiss Finals',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'swiss_single_elim',
+            'swiss_rounds' => 1,
+            'top_cut_size' => 2,
+            'match_format' => 7,
+            'date' => '2026-04-03',
+            'location' => null,
+            'status' => 'upcoming',
+            'is_active' => true,
+            'created_by' => $creator->id,
+        ]);
+
+        $players = collect(['alpha', 'beta', 'charlie', 'delta'])->map(function (string $nickname) use ($event) {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+            ]);
+
+            return $player;
+        });
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $swissMatches = $event->fresh('matches')->matches->sortBy('match_number')->values();
+
+        $this->submitMatchResult($event, $swissMatches[0], [
+            [1, 'spin'],
+            [1, 'spin'],
+            [1, 'burst'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $this->submitMatchResult($event, $swissMatches[1], [
+            [1, 'spin'],
+            [2, 'spin'],
+            [1, 'burst'],
+            [1, 'spin'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $qualifiers = app(BracketService::class)->deckRegistrationTargets($event->fresh());
+
+        foreach ($qualifiers as $participant) {
+            $this->post(route('events.participants.deck.store', [$event, $participant->player]), [
+                'deck_name' => strtoupper($participant->player->user->nickname).' Top Cut',
+                'deck_bey1' => 'Phoenix',
+                'deck_bey2' => 'Dran',
+                'deck_bey3' => 'Wizard',
+            ])->assertRedirect($this->workspaceRoute($event));
+        }
+
+        $this->post(route('events.bracket.generate', $event))
+            ->assertRedirect($this->workspaceRoute($event));
+
+        $finalMatch = $event->fresh('matches')->matches->where('stage', 'single_elim')->firstOrFail();
+
+        $this->submitMatchResult($event, $finalMatch, [
+            [2, 'burst'],
+            [2, 'burst'],
+            [1, 'spin'],
+            [2, 'extreme'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+          $event->refresh();
+
+          $this->assertSame('completed', $event->bracket_status);
+          $this->assertSame('finished', $event->status);
+          $this->assertTrue($event->is_active);
+          $this->assertSame($players[0]->id, $event->swiss_king_player_id);
+          $this->assertSame($players[1]->id, $event->bird_king_player_id);
+          $this->assertDatabaseHas('event_awards', [
+              'event_id' => $event->id,
+              'player_id' => $players[0]->id,
+              'award_id' => Award::query()->where('name', 'Swiss King')->value('id'),
+          ]);
+          $this->assertDatabaseHas('event_awards', [
+              'event_id' => $event->id,
+              'player_id' => $players[1]->id,
+              'award_id' => Award::query()->where('name', 'Bird King')->value('id'),
+          ]);
+          $this->assertDatabaseMissing('event_awards', [
+              'event_id' => $event->id,
+              'award_id' => Award::query()->where('name', 'Swiss Champ')->value('id'),
+          ]);
+          $this->assertDatabaseHas('event_results', [
+              'event_id' => $event->id,
+              'player_id' => $players[2]->id,
+              'placement' => 1,
+          ]);
+        $this->assertDatabaseHas('event_results', [
+            'event_id' => $event->id,
+            'player_id' => $players[0]->id,
+            'placement' => 2,
+        ]);
+    }
+
+    public function test_swiss_king_receives_swiss_champ_when_they_also_win_top_cut(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'swiss-champ-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Swiss Champ Finals',
             'description' => null,
             'event_type_id' => $eventType->id,
             'bracket_type' => 'swiss_single_elim',
@@ -817,16 +1387,12 @@ class EventWorkflowTest extends TestCase
             [1, 'spin'],
             [1, 'spin'],
             [1, 'burst'],
-            [1, 'extreme'],
         ])->assertRedirect($this->workspaceRoute($event));
 
         $this->submitMatchResult($event, $swissMatches[1], [
             [1, 'spin'],
             [2, 'spin'],
             [1, 'burst'],
-            [2, 'spin'],
-            [1, 'extreme'],
-            [2, 'burst'],
             [1, 'spin'],
         ])->assertRedirect($this->workspaceRoute($event));
 
@@ -847,36 +1413,275 @@ class EventWorkflowTest extends TestCase
         $finalMatch = $event->fresh('matches')->matches->where('stage', 'single_elim')->firstOrFail();
 
         $this->submitMatchResult($event, $finalMatch, [
+            [1, 'burst'],
+            [1, 'burst'],
             [2, 'spin'],
-            [2, 'burst'],
-            [1, 'spin'],
-            [2, 'extreme'],
-            [2, 'spin'],
+            [1, 'extreme'],
         ])->assertRedirect($this->workspaceRoute($event));
 
-        $event->refresh();
-
-        $this->assertSame('completed', $event->bracket_status);
-        $this->assertSame('finished', $event->status);
-        $this->assertDatabaseHas('event_awards', [
-            'event_id' => $event->id,
-            'player_id' => $players[2]->id,
-            'award_id' => Award::query()->where('name', 'Swiss Champ')->value('id'),
-        ]);
         $this->assertDatabaseHas('event_awards', [
             'event_id' => $event->id,
             'player_id' => $players[0]->id,
             'award_id' => Award::query()->where('name', 'Swiss King')->value('id'),
         ]);
-        $this->assertDatabaseHas('event_results', [
-            'event_id' => $event->id,
-            'player_id' => $players[2]->id,
-            'placement' => 1,
-        ]);
-        $this->assertDatabaseHas('event_results', [
+        $this->assertDatabaseHas('event_awards', [
             'event_id' => $event->id,
             'player_id' => $players[0]->id,
-            'placement' => 2,
+            'award_id' => Award::query()->where('name', 'Swiss Champ')->value('id'),
+        ]);
+        $this->assertDatabaseHas('event_awards', [
+            'event_id' => $event->id,
+            'player_id' => $players[1]->id,
+            'award_id' => Award::query()->where('name', 'Bird King')->value('id'),
+        ]);
+    }
+
+    public function test_swiss_king_stays_locked_to_the_end_of_swiss_leader_after_regeneration(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'swiss-lock-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Locked Swiss King Finals',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'swiss_single_elim',
+            'swiss_rounds' => 1,
+            'top_cut_size' => 2,
+            'match_format' => 7,
+            'date' => '2026-04-04',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $players = collect(['alpha', 'beta', 'charlie', 'delta'])->map(function (string $nickname) use ($event) {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+            ]);
+
+            return $player;
+        });
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $swissMatches = $event->fresh('matches')->matches->where('stage', 'swiss')->sortBy('match_number')->values();
+
+        $this->submitMatchResult($event, $swissMatches[0], [
+            [1, 'spin'],
+            [1, 'spin'],
+            [1, 'burst'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $this->submitMatchResult($event, $swissMatches[1], [
+            [1, 'spin'],
+            [2, 'spin'],
+            [1, 'burst'],
+            [1, 'spin'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $qualifiers = app(BracketService::class)->deckRegistrationTargets($event->fresh());
+
+        foreach ($qualifiers as $participant) {
+            $this->post(route('events.participants.deck.store', [$event, $participant->player]), [
+                'deck_name' => strtoupper($participant->player->user->nickname).' Top Cut',
+                'deck_bey1' => 'Phoenix',
+                'deck_bey2' => 'Dran',
+                'deck_bey3' => 'Wizard',
+            ])->assertRedirect($this->workspaceRoute($event));
+        }
+
+        $this->post(route('events.bracket.generate', $event))
+            ->assertRedirect($this->workspaceRoute($event));
+
+        $finalMatch = $event->fresh('matches')->matches->where('stage', 'single_elim')->firstOrFail();
+
+        $this->submitMatchResult($event, $finalMatch, [
+            [2, 'burst'],
+            [2, 'burst'],
+            [1, 'spin'],
+            [2, 'extreme'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $event->refresh();
+        $this->assertSame($players[0]->id, $event->swiss_king_player_id);
+
+        $tamperedSwissMatch = EventMatch::query()
+            ->where('event_id', $event->id)
+            ->where('stage', 'swiss')
+            ->where('match_number', 1)
+            ->firstOrFail();
+
+        $tamperedSwissMatch->forceFill([
+            'winner_id' => $players[1]->id,
+            'player1_score' => 0,
+            'player2_score' => 4,
+            'result_1' => 2,
+            'result_type_1' => 'spin',
+            'result_2' => 2,
+            'result_type_2' => 'burst',
+            'result_3' => 2,
+            'result_type_3' => 'spin',
+            'result_4' => null,
+            'result_type_4' => null,
+            'result_5' => null,
+            'result_type_5' => null,
+            'result_6' => null,
+            'result_type_6' => null,
+            'result_7' => null,
+            'result_type_7' => null,
+        ])->save();
+
+        EventAward::query()
+            ->where('event_id', $event->id)
+            ->delete();
+
+        $this->post(route('events.outcomes.regenerate', $event), [
+            'dashboard_redirect' => 1,
+            'dashboard_panel' => 'workspace',
+            'dashboard_event_id' => $event->id,
+        ])->assertRedirect($this->workspaceRoute($event));
+
+        $this->assertDatabaseHas('event_awards', [
+            'event_id' => $event->id,
+            'player_id' => $players[0]->id,
+            'award_id' => Award::query()->where('name', 'Swiss King')->value('id'),
+        ]);
+        $this->assertDatabaseMissing('event_awards', [
+            'event_id' => $event->id,
+            'player_id' => $players[1]->id,
+            'award_id' => Award::query()->where('name', 'Swiss King')->value('id'),
+        ]);
+    }
+
+    public function test_started_event_details_cannot_be_updated(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'locked-edit-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Locked Edit Cup',
+            'description' => 'Original description',
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-05',
+            'location' => 'Original venue',
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        collect(['alpha', 'beta'])->each(function (string $nickname) use ($event): void {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+                'deck_bey1' => 'Phoenix',
+                'deck_bey2' => 'Dran',
+                'deck_bey3' => 'Wizard',
+                'deck_registered_at' => now(),
+            ]);
+        });
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $response = $this->put(route('events.update', $event), [
+            'title' => 'Tampered Title',
+            'description' => 'Updated description',
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'date' => '2026-04-06',
+            'location' => 'Updated venue',
+            'status' => 'upcoming',
+            'created_by_nickname' => $creator->nickname,
+            'dashboard_redirect' => 1,
+            'dashboard_panel' => 'events',
+            'dashboard_event_id' => $event->id,
+        ]);
+
+        $response->assertRedirect(route('dashboard', ['panel' => 'events', 'event' => $event->id]));
+        $response->assertSessionHasErrors(['event_locked']);
+        $this->assertDatabaseHas('events', [
+            'id' => $event->id,
+            'title' => 'Locked Edit Cup',
+            'description' => 'Original description',
+            'location' => 'Original venue',
+        ]);
+    }
+
+    public function test_started_event_participants_cannot_be_added_or_removed(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'locked-participant-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Locked Participant Cup',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-05',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $players = collect(['alpha', 'beta'])->map(function (string $nickname) use ($event) {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+                'deck_bey1' => 'Phoenix',
+                'deck_bey2' => 'Dran',
+                'deck_bey3' => 'Wizard',
+                'deck_registered_at' => now(),
+            ]);
+
+            return $player;
+        });
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $addResponse = $this->post(route('events.participants.store', $event), [
+            'nickname' => 'latecomer',
+            'dashboard_redirect' => 1,
+            'dashboard_panel' => 'workspace',
+            'dashboard_event_id' => $event->id,
+        ]);
+
+        $addResponse->assertRedirect($this->workspaceRoute($event));
+        $addResponse->assertSessionHasErrors(['participants']);
+        $this->assertDatabaseMissing('users', ['nickname' => 'latecomer']);
+        $this->assertSame(2, EventParticipant::query()->where('event_id', $event->id)->count());
+
+        $removeResponse = $this->delete(route('events.participants.destroy', [$event, $players->first()]), [
+            'dashboard_redirect' => 1,
+            'dashboard_panel' => 'workspace',
+            'dashboard_event_id' => $event->id,
+        ]);
+
+        $removeResponse->assertRedirect($this->workspaceRoute($event));
+        $removeResponse->assertSessionHasErrors(['participants']);
+        $this->assertDatabaseHas('event_participants', [
+            'event_id' => $event->id,
+            'player_id' => $players->first()->id,
         ]);
     }
 
@@ -926,6 +1731,56 @@ class EventWorkflowTest extends TestCase
         $this->assertDatabaseHas('events', [
             'id' => $secondEvent->id,
             'is_active' => 1,
+        ]);
+    }
+
+    public function test_admin_can_set_a_finished_event_as_active(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'finished-active-host']);
+        $eventType = EventType::query()->first();
+
+        $upcomingActiveEvent = Event::query()->create([
+            'title' => 'Current Active Candidate',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-06',
+            'location' => null,
+            'status' => 'upcoming',
+            'is_active' => true,
+            'created_by' => $creator->id,
+        ]);
+
+        $finishedEvent = Event::query()->create([
+            'title' => 'Finished Finals Review',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-07',
+            'location' => null,
+            'status' => 'finished',
+            'created_by' => $creator->id,
+        ]);
+
+        $response = $this->post(route('events.activate', $finishedEvent), [
+            'dashboard_redirect' => 1,
+            'dashboard_panel' => 'events',
+            'dashboard_event_id' => $finishedEvent->id,
+        ]);
+
+        $response->assertRedirect(route('dashboard', ['panel' => 'events', 'event' => $finishedEvent->id]));
+        $this->assertDatabaseHas('events', [
+            'id' => $upcomingActiveEvent->id,
+            'is_active' => 0,
+        ]);
+        $this->assertDatabaseHas('events', [
+            'id' => $finishedEvent->id,
+            'is_active' => 1,
+            'status' => 'finished',
         ]);
     }
 

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Event;
 use App\Models\EventAward;
+use App\Models\EventMatch;
 use App\Models\EventParticipant;
 use App\Models\EventResult;
 use App\Models\EventType;
@@ -35,7 +36,7 @@ class EventOverviewService
 
     public function dashboardData(?int $selectedEventId = null, string $activePanel = 'overview'): array
     {
-        $ongoingTournament = $this->ongoingTournament();
+        $ongoingTournament = $this->activeDashboardEvent();
         $latestEvent = $this->latestEvent();
         $selectedEvent = $this->selectedEvent($selectedEventId, $activePanel, $ongoingTournament, $latestEvent);
 
@@ -48,6 +49,7 @@ class EventOverviewService
             'upcomingEvents' => collect(),
             'awardLeaders' => collect(),
             'adminEvents' => collect(),
+            'adminEventPreviews' => collect(),
             'eventTypes' => collect(),
             'selectedEvent' => $selectedEvent,
             'selectedEventParticipants' => collect(),
@@ -67,6 +69,7 @@ class EventOverviewService
 
         if ($activePanel === 'events') {
             $data['adminEvents'] = $this->adminEvents();
+            $data['adminEventPreviews'] = $this->adminEventPreviews($data['adminEvents']);
             $data['eventTypes'] = $this->eventTypes();
         }
 
@@ -120,12 +123,25 @@ class EventOverviewService
             ->first();
     }
 
+    private function activeDashboardEvent(): ?Event
+    {
+        return Event::query()
+            ->with(['eventType', 'creator'])
+            ->withCount('participants')
+            ->where('is_active', true)
+            ->orderByRaw("CASE WHEN status = 'upcoming' THEN 0 ELSE 1 END")
+            ->orderBy('date')
+            ->orderByDesc('id')
+            ->first();
+    }
+
     private function latestEvent(): ?Event
     {
         return Event::query()
             ->with(['eventType', 'creator'])
             ->withCount('participants')
             ->where('status', 'finished')
+            ->whereHas('results.player.user')
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->first();
@@ -140,6 +156,7 @@ class EventOverviewService
         return EventResult::query()
             ->with('player.user')
             ->where('event_id', $event->id)
+            ->whereHas('player.user')
             ->orderBy('placement')
             ->limit(4)
             ->get();
@@ -154,6 +171,7 @@ class EventOverviewService
         return EventResult::query()
             ->with('player.user')
             ->where('event_id', $event->id)
+            ->whereHas('player.user')
             ->orderBy('placement')
             ->first();
     }
@@ -162,6 +180,7 @@ class EventOverviewService
     {
         return Event::query()
             ->with(['eventType', 'creator'])
+            ->withCount('participants')
             ->where('status', 'upcoming')
             ->orderBy('date')
             ->orderBy('id')
@@ -174,15 +193,59 @@ class EventOverviewService
         return Event::query()
             ->with(['eventType', 'creator'])
             ->withCount('participants')
-            ->orderByDesc('is_active')
-            ->orderByDesc('date')
-            ->orderByDesc('id')
-            ->get();
+            ->get()
+            ->sort(function (Event $left, Event $right): int {
+                $leftRank = $left->is_active ? 0 : ($left->status === 'upcoming' ? 1 : 2);
+                $rightRank = $right->is_active ? 0 : ($right->status === 'upcoming' ? 1 : 2);
+
+                if ($leftRank !== $rightRank) {
+                    return $leftRank <=> $rightRank;
+                }
+
+                if ($leftRank === 2) {
+                    return $right->date->timestamp <=> $left->date->timestamp
+                        ?: $right->id <=> $left->id;
+                }
+
+                return $left->date->timestamp <=> $right->date->timestamp
+                    ?: $left->id <=> $right->id;
+            })
+            ->values();
     }
 
     private function eventTypes(): Collection
     {
         return EventType::query()->orderBy('name')->get();
+    }
+
+    private function adminEventPreviews(Collection $events): Collection
+    {
+        return $events->mapWithKeys(function (Event $event): array {
+            $participants = $this->selectedEventParticipants($event);
+            $results = $this->selectedEventResults($event);
+            $awards = $this->selectedEventAwards($event);
+            $rounds = $this->selectedEventRounds($event);
+            $swissStandings = $this->selectedSwissStandings($event);
+            $deckTargets = $this->selectedDeckRegistrationTargets($event);
+            $missingDeckRegistrations = $this->selectedMissingDeckRegistrations($event);
+            $allMatches = $rounds
+                ->flatMap(fn ($round) => $round->matches->sortBy('match_number')->values())
+                ->values();
+
+            return [
+                $event->id => [
+                    'participants' => $participants,
+                    'results' => $results,
+                    'awards' => $awards,
+                    'rounds' => $rounds,
+                    'swissStandings' => $swissStandings,
+                    'pendingMatchCount' => $allMatches->where('status', 'pending')->count(),
+                    'completedMatchCount' => $allMatches->where('status', 'completed')->count(),
+                    'deckTargetCount' => $deckTargets->count(),
+                    'missingDeckCount' => $missingDeckRegistrations->count(),
+                ],
+            ];
+        });
     }
 
     private function selectedEvent(?int $selectedEventId, string $activePanel, ?Event $ongoingTournament, ?Event $latestEvent): ?Event
@@ -216,6 +279,7 @@ class EventOverviewService
 
         return $event->eventParticipants()
             ->with('player.user')
+            ->whereHas('player.user')
             ->get()
             ->sortBy(fn (EventParticipant $participant) => strtolower($participant->player->user->nickname))
             ->values();
@@ -229,6 +293,7 @@ class EventOverviewService
 
         return $event->results()
             ->with('player.user')
+            ->whereHas('player.user')
             ->orderBy('placement')
             ->get();
     }
@@ -241,6 +306,7 @@ class EventOverviewService
 
         return $event->awards()
             ->with(['award', 'player.user'])
+            ->whereHas('player.user')
             ->get()
             ->sortBy(fn (EventAward $eventAward) => strtolower($eventAward->award->name))
             ->values();
@@ -256,7 +322,17 @@ class EventOverviewService
             ->with(['matches.player1.user', 'matches.player2.user', 'matches.winner.user'])
             ->orderByRaw("case when stage = 'swiss' then 0 when stage = 'single_elim' then 1 else 2 end")
             ->orderBy('round_number')
-            ->get();
+            ->get()
+            ->map(function ($round) {
+                $round->setRelation(
+                    'matches',
+                    $round->matches
+                        ->filter(fn (EventMatch $match) => $this->matchHasRenderablePlayers($match))
+                        ->values()
+                );
+
+                return $round;
+            });
     }
 
     private function selectedSwissStandings(?Event $event): Collection
@@ -331,5 +407,22 @@ class EventOverviewService
                 'total' => $leader?->total ?? 0,
             ];
         });
+    }
+
+    private function matchHasRenderablePlayers(EventMatch $match): bool
+    {
+        if (! $match->player1) {
+            return false;
+        }
+
+        if (! $match->is_bye && $match->player2_id && ! $match->player2) {
+            return false;
+        }
+
+        if ($match->winner_id && ! $match->winner) {
+            return false;
+        }
+
+        return true;
     }
 }

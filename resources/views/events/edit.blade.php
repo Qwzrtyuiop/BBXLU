@@ -17,17 +17,13 @@
                 <textarea name="description" rows="3" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">{{ old('description', $event->description) }}</textarea>
             </label>
 
-            <div class="grid gap-4 sm:grid-cols-3">
-                <label class="grid gap-1 sm:col-span-2">
+            <div class="grid gap-4">
+                <label class="grid gap-1">
                     <span class="text-sm text-slate-300">Bracket Type</span>
                     <select name="bracket_type" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
                         <option value="single_elim" @selected(old('bracket_type', $event->bracket_type) === 'single_elim')>Single Elimination</option>
                         <option value="swiss_single_elim" @selected(old('bracket_type', $event->bracket_type) === 'swiss_single_elim')>Swiss + Single Elimination</option>
                     </select>
-                </label>
-                <label class="grid gap-1">
-                    <span class="text-sm text-slate-300">Best Of</span>
-                    <input value="{{ $event->match_format }}" disabled class="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-slate-400">
                 </label>
             </div>
 
