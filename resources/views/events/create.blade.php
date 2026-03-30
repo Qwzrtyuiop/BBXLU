@@ -1,7 +1,7 @@
 <x-layouts.app :title="'Create Event | BBXLU'">
     <section class="mx-auto max-w-3xl rounded-xl border border-slate-800 bg-slate-900/70 p-6">
         <h2 class="text-2xl font-bold text-amber-100">Create Event</h2>
-        <p class="mt-1 text-sm text-slate-400">You can type any creator nickname. If user does not exist, account is auto-created.</p>
+        <p class="mt-1 text-sm text-slate-400">Set the event details and choose whether this will run as single elimination only or Swiss into top cut.</p>
 
         <form action="{{ route('events.store') }}" method="POST" class="mt-6 grid gap-4">
             @csrf
@@ -16,16 +16,34 @@
                 <textarea name="description" rows="3" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">{{ old('description') }}</textarea>
             </label>
 
-            <label class="grid gap-1">
-                <span class="text-sm text-slate-300">Challonge URL (optional)</span>
-                <input
-                    type="url"
-                    name="challonge_link"
-                    value="{{ old('challonge_link', old('challonge_url')) }}"
-                    placeholder="https://challonge.com/..."
-                    class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none"
-                >
-            </label>
+            <div class="grid gap-4 sm:grid-cols-3">
+                <label class="grid gap-1 sm:col-span-2">
+                    <span class="text-sm text-slate-300">Bracket Type</span>
+                    <select name="bracket_type" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                        <option value="single_elim" @selected(old('bracket_type', 'single_elim') === 'single_elim')>Single Elimination</option>
+                        <option value="swiss_single_elim" @selected(old('bracket_type') === 'swiss_single_elim')>Swiss + Single Elimination</option>
+                    </select>
+                </label>
+                <label class="grid gap-1">
+                    <span class="text-sm text-slate-300">Best Of</span>
+                    <input value="7" disabled class="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-slate-400">
+                </label>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label class="grid gap-1">
+                    <span class="text-sm text-slate-300">Swiss Rounds</span>
+                    <input type="number" min="1" max="12" name="swiss_rounds" value="{{ old('swiss_rounds', 5) }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                </label>
+                <label class="grid gap-1">
+                    <span class="text-sm text-slate-300">Top Cut Size</span>
+                    <select name="top_cut_size" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                        @foreach ([2, 4, 8, 16, 32, 64] as $size)
+                            <option value="{{ $size }}" @selected((string) old('top_cut_size', 8) === (string) $size)>Top {{ $size }}</option>
+                        @endforeach
+                    </select>
+                </label>
+            </div>
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <label class="grid gap-1">

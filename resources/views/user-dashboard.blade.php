@@ -57,11 +57,9 @@
                                             {{ $event->date->format('D, d M Y') }}@if ($event->eventType) - {{ $event->eventType->name }}@endif
                                         </p>
                                     </div>
-                                    @if ($event->resolvedChallongeLink())
-                                        <a href="{{ $event->resolvedChallongeLink() }}" target="_blank" rel="noreferrer" class="rounded-lg border border-cyan-400/50 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100 transition hover:bg-cyan-400/10">
-                                            Bracket
-                                        </a>
-                                    @endif
+                                    <span class="rounded-lg border border-cyan-400/35 px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100">
+                                        {{ $event->bracketLabel() }}
+                                    </span>
                                 </div>
                                 <p class="mt-2 text-sm text-slate-400">{{ $event->location ?: 'Venue to be announced.' }}</p>
                             </article>

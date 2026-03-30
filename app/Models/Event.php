@@ -18,9 +18,16 @@ class Event extends Model
         'challonge_link',
         'challonge_url',
         'event_type_id',
+        'bracket_type',
+        'swiss_rounds',
+        'top_cut_size',
+        'match_format',
         'date',
         'location',
         'status',
+        'is_active',
+        'bracket_status',
+        'is_lock_deck',
         'created_by',
     ];
 
@@ -28,6 +35,11 @@ class Event extends Model
     {
         return [
             'date' => 'date',
+            'is_active' => 'boolean',
+            'is_lock_deck' => 'boolean',
+            'swiss_rounds' => 'integer',
+            'top_cut_size' => 'integer',
+            'match_format' => 'integer',
         ];
     }
 
@@ -51,6 +63,11 @@ class Event extends Model
         return $this->hasMany(EventResult::class);
     }
 
+    public function eventParticipants(): HasMany
+    {
+        return $this->hasMany(EventParticipant::class);
+    }
+
     public function awards(): HasMany
     {
         return $this->hasMany(EventAward::class);
@@ -59,6 +76,33 @@ class Event extends Model
     public function matches(): HasMany
     {
         return $this->hasMany(EventMatch::class);
+    }
+
+    public function rounds(): HasMany
+    {
+        return $this->hasMany(EventRound::class);
+    }
+
+    public function usesSwissBracket(): bool
+    {
+        return $this->bracket_type === 'swiss_single_elim';
+    }
+
+    public function usesLockedDecks(): bool
+    {
+        return (bool) $this->is_lock_deck;
+    }
+
+    public function bracketLabel(): string
+    {
+        return $this->usesSwissBracket()
+            ? 'Swiss + Single Elimination'
+            : 'Single Elimination';
+    }
+
+    public function battleWinThreshold(): int
+    {
+        return (int) floor(max(1, $this->match_format) / 2) + 1;
     }
 
     public function storedChallongeLink(): ?string

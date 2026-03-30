@@ -2,7 +2,7 @@
     <section class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-bold text-amber-100">Events</h2>
-            <p class="text-sm text-slate-400">Create and manage tournaments, results, awards, and matches.</p>
+            <p class="text-sm text-slate-400">Create and manage tournaments, brackets, participants, and live matches.</p>
         </div>
         <a href="{{ route('events.create') }}" class="rounded-lg border border-amber-500/60 px-4 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-500/10">
             Create Event

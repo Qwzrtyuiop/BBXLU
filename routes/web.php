@@ -33,14 +33,11 @@ Route::middleware(['auth', 'admin'])->group(function (): void {
     Route::get('/events/{event}', [EventController::class, 'show'])->name('events.show');
 
     Route::post('/events/{event}/participants', [EventController::class, 'storeParticipant'])->name('events.participants.store');
+    Route::post('/events/{event}/participants/{player}/deck', [EventController::class, 'updateParticipantDeck'])->name('events.participants.deck.store');
     Route::delete('/events/{event}/participants/{player}', [EventController::class, 'destroyParticipant'])->name('events.participants.destroy');
 
-    Route::post('/events/{event}/results', [EventController::class, 'storeResult'])->name('events.results.store');
-    Route::delete('/events/{event}/results/{result}', [EventController::class, 'destroyResult'])->name('events.results.destroy');
-
-    Route::post('/events/{event}/awards', [EventController::class, 'storeAward'])->name('events.awards.store');
-    Route::delete('/events/{event}/awards/{eventAward}', [EventController::class, 'destroyAward'])->name('events.awards.destroy');
-
+    Route::post('/events/{event}/activate', [EventController::class, 'activate'])->name('events.activate');
     Route::post('/events/{event}/matches', [EventController::class, 'storeMatch'])->name('events.matches.store');
     Route::delete('/events/{event}/matches/{match}', [EventController::class, 'destroyMatch'])->name('events.matches.destroy');
+    Route::post('/events/{event}/bracket/generate', [EventController::class, 'generateBracketRound'])->name('events.bracket.generate');
 });

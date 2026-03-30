@@ -21,7 +21,7 @@
                 <div class="mt-8 grid gap-4 sm:grid-cols-3">
                     <article class="rounded-2xl border border-cyan-400/25 bg-slate-950/45 p-4">
                         <p class="text-[10px] uppercase tracking-[0.18em] text-cyan-300/75">Admin</p>
-                        <p class="mt-2 text-sm text-slate-300">Manage events, rankings, awards, and live workspace tools.</p>
+                        <p class="mt-2 text-sm text-slate-300">Manage events, brackets, rankings, and live workspace tools.</p>
                     </article>
                     <article class="rounded-2xl border border-amber-400/25 bg-slate-950/45 p-4">
                         <p class="text-[10px] uppercase tracking-[0.18em] text-amber-300/75">Player</p>

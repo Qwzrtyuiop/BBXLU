@@ -434,59 +434,116 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const workspaceMatchModal = document.querySelector('[data-workspace-match-modal]');
+    if (workspaceMatchModal) {
+        const workspaceMatchButtons = document.querySelectorAll('[data-workspace-match-open]');
+        const workspaceMatchCloseButtons = workspaceMatchModal.querySelectorAll('[data-workspace-match-close]');
+        const workspaceMatchTitle = workspaceMatchModal.querySelector('[data-workspace-match-modal-title]');
+        const workspaceMatchSubtitle = workspaceMatchModal.querySelector('[data-workspace-match-modal-subtitle]');
+        const workspaceMatchBody = workspaceMatchModal.querySelector('[data-workspace-match-modal-body]');
+
+        const openWorkspaceMatchModal = (button) => {
+            const templateId = button.dataset.matchTemplateId;
+            const template = templateId ? document.getElementById(templateId) : null;
+            if (!template || !workspaceMatchBody) {
+                return;
+            }
+
+            if (workspaceMatchTitle) {
+                workspaceMatchTitle.textContent = button.dataset.matchModalTitle || '';
+            }
+
+            if (workspaceMatchSubtitle) {
+                workspaceMatchSubtitle.textContent = button.dataset.matchModalSubtitle || '';
+            }
+
+            workspaceMatchBody.innerHTML = template.innerHTML;
+            workspaceMatchModal.classList.remove('hidden');
+            workspaceMatchModal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+        };
+
+        const closeWorkspaceMatchModal = () => {
+            workspaceMatchModal.classList.add('hidden');
+            workspaceMatchModal.classList.remove('flex');
+            if (workspaceMatchBody) {
+                workspaceMatchBody.innerHTML = '';
+            }
+            document.body.classList.remove('overflow-hidden');
+        };
+
+        workspaceMatchButtons.forEach((button) => {
+            button.addEventListener('click', () => openWorkspaceMatchModal(button));
+        });
+
+        workspaceMatchCloseButtons.forEach((button) => {
+            button.addEventListener('click', closeWorkspaceMatchModal);
+        });
+
+        workspaceMatchModal.addEventListener('click', (event) => {
+            if (event.target === workspaceMatchModal) {
+                closeWorkspaceMatchModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !workspaceMatchModal.classList.contains('hidden')) {
+                closeWorkspaceMatchModal();
+            }
+        });
+    }
+
     const modal = document.querySelector('[data-event-modal]');
-    if (!modal) {
-        return;
-    }
+    if (modal) {
+        const modalTitle = modal.querySelector('[data-event-modal-title]');
+        const modalType = modal.querySelector('[data-event-modal-type]');
+        const modalDate = modal.querySelector('[data-event-modal-date]');
+        const modalStatus = modal.querySelector('[data-event-modal-status]');
+        const modalLocation = modal.querySelector('[data-event-modal-location]');
+        const modalParticipants = modal.querySelector('[data-event-modal-participants]');
+        const modalCreatedBy = modal.querySelector('[data-event-modal-created-by]');
+        const modalDescription = modal.querySelector('[data-event-modal-description]');
+        const closeButton = modal.querySelector('[data-event-modal-close]');
 
-    const modalTitle = modal.querySelector('[data-event-modal-title]');
-    const modalType = modal.querySelector('[data-event-modal-type]');
-    const modalDate = modal.querySelector('[data-event-modal-date]');
-    const modalStatus = modal.querySelector('[data-event-modal-status]');
-    const modalLocation = modal.querySelector('[data-event-modal-location]');
-    const modalParticipants = modal.querySelector('[data-event-modal-participants]');
-    const modalCreatedBy = modal.querySelector('[data-event-modal-created-by]');
-    const modalDescription = modal.querySelector('[data-event-modal-description]');
-    const closeButton = modal.querySelector('[data-event-modal-close]');
+        const openModal = (card) => {
+            modalTitle.textContent = card.dataset.eventTitle || '';
+            modalType.textContent = card.dataset.eventType || '';
+            modalDate.textContent = card.dataset.eventDate || '';
+            modalStatus.textContent = card.dataset.eventStatus || '';
+            modalLocation.textContent = card.dataset.eventLocation || '';
+            modalParticipants.textContent = card.dataset.eventParticipants || '';
+            modalCreatedBy.textContent = card.dataset.eventCreatedBy || '';
+            modalDescription.textContent = card.dataset.eventDescription || '';
 
-    const openModal = (card) => {
-        modalTitle.textContent = card.dataset.eventTitle || '';
-        modalType.textContent = card.dataset.eventType || '';
-        modalDate.textContent = card.dataset.eventDate || '';
-        modalStatus.textContent = card.dataset.eventStatus || '';
-        modalLocation.textContent = card.dataset.eventLocation || '';
-        modalParticipants.textContent = card.dataset.eventParticipants || '';
-        modalCreatedBy.textContent = card.dataset.eventCreatedBy || '';
-        modalDescription.textContent = card.dataset.eventDescription || '';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+        };
 
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        document.body.classList.add('overflow-hidden');
-    };
+        const closeModal = () => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.classList.remove('overflow-hidden');
+        };
 
-    const closeModal = () => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        document.body.classList.remove('overflow-hidden');
-    };
+        document.querySelectorAll('[data-event-card]').forEach((card) => {
+            card.addEventListener('click', () => openModal(card));
+        });
 
-    document.querySelectorAll('[data-event-card]').forEach((card) => {
-        card.addEventListener('click', () => openModal(card));
-    });
-
-    if (closeButton) {
-        closeButton.addEventListener('click', closeModal);
-    }
-
-    modal.addEventListener('click', (event) => {
-        if (event.target === modal) {
-            closeModal();
+        if (closeButton) {
+            closeButton.addEventListener('click', closeModal);
         }
-    });
 
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
-            closeModal();
-        }
-    });
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+                closeModal();
+            }
+        });
+    }
 });

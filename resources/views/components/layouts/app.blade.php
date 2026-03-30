@@ -61,8 +61,8 @@
                         <nav class="{{ $navClasses }}">
                             @if ($isAdmin)
                                 <a href="{{ route('dashboard') }}" class="{{ $navLinkClasses }}">Dashboard</a>
-                                <a href="{{ route('events.index') }}" class="{{ $navLinkClasses }}">Events</a>
-                                <a href="{{ route('players.index') }}" class="{{ $navLinkClasses }}">Players</a>
+                                <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="{{ $navLinkClasses }}">Events</a>
+                                <a href="{{ route('dashboard', ['panel' => 'players']) }}" class="{{ $navLinkClasses }}">Players</a>
                             @else
                                 <a href="{{ route('user.dashboard') }}" class="{{ $navLinkClasses }}">User Dashboard</a>
                                 <a href="{{ route('home') }}" class="{{ $navLinkClasses }}">Home</a>

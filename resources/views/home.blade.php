@@ -162,7 +162,7 @@
         <div data-float-rail class="relative overflow-hidden border border-emerald-400/40 bg-[linear-gradient(160deg,rgba(6,78,59,0.28)_0%,rgba(2,6,23,0.95)_42%,rgba(2,6,23,0.99)_100%)] p-4 shadow-[0_16px_36px_rgba(2,6,23,0.5)] xl:fixed xl:left-[calc(50%-38rem)] xl:w-48 2xl:left-[calc(50%-45rem)] 2xl:w-56 min-[1792px]:left-[calc(50%-58rem)] min-[1792px]:w-80">
             <div class="relative">
                 <div class="mb-3">
-                    <p class="type-kicker text-[10px] text-emerald-300/75">Live Bracket Feed</p>
+                    <p class="type-kicker text-[10px] text-emerald-300/75">Live Event Feed</p>
                     <div class="mt-1 flex items-center justify-between gap-2">
                         <h2 class="type-title text-sm text-emerald-100">Ongoing Tournament</h2>
                         <span class="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.9)]"></span>
@@ -183,22 +183,16 @@
                         </div>
                     </div>
 
-                    @if ($ongoingTournamentLink)
-                        <a
-                            href="{{ $ongoingTournamentLink }}"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="type-label mt-3 inline-flex w-full items-center justify-center bg-emerald-400/12 px-3 py-2 text-[11px] text-emerald-100 transition hover:bg-emerald-400/24"
-                        >
-                            Open Challonge
-                        </a>
-                    @else
-                        <p class="type-body mt-3 text-xs text-slate-400">No Challonge link yet.</p>
-                    @endif
+                    <div class="mt-3 border border-emerald-400/20 bg-slate-950/45 px-3 py-2">
+                        <p class="type-label text-[10px] text-emerald-200">{{ $ongoingTournament->bracketLabel() }}</p>
+                        <p class="type-body mt-1 text-xs text-slate-400">
+                            Bracket handling is managed inside BBXLU for this event.
+                        </p>
+                    </div>
                 @else
                     <div class="mt-1">
                         <p class="type-title text-sm text-slate-100">No Ongoing Event</p>
-                        <p class="type-body mt-1 text-xs text-slate-500">Set an event to upcoming and it will appear here.</p>
+                        <p class="type-body mt-1 text-xs text-slate-500">Set an event as active in the dashboard and it will appear here.</p>
                     </div>
                 @endif
             </div>

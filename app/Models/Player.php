@@ -28,6 +28,11 @@ class Player extends Model
         return $this->belongsToMany(Event::class, 'event_participants');
     }
 
+    public function eventParticipations(): HasMany
+    {
+        return $this->hasMany(EventParticipant::class);
+    }
+
     public function results(): HasMany
     {
         return $this->hasMany(EventResult::class);

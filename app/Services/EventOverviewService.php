@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\Award;
 use App\Models\Event;
 use App\Models\EventAward;
+use App\Models\EventParticipant;
 use App\Models\EventResult;
 use App\Models\EventType;
 use App\Models\Player;
@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\DB;
 
 class EventOverviewService
 {
+    public function __construct(private readonly BracketService $bracketService)
+    {
+    }
+
     public function homeData(): array
     {
         $ongoingTournament = $this->ongoingTournament();
@@ -23,7 +27,6 @@ class EventOverviewService
             'stats' => $this->stats(),
             'events' => $this->allEvents(),
             'ongoingTournament' => $ongoingTournament,
-            'ongoingTournamentLink' => $ongoingTournament?->resolvedChallongeLink(),
             'latestEvent' => $latestEvent,
             'latestEventPlacements' => $this->latestEventPlacements($latestEvent),
             'awardLeaders' => $this->awardLeaders(),
@@ -34,12 +37,11 @@ class EventOverviewService
     {
         $ongoingTournament = $this->ongoingTournament();
         $latestEvent = $this->latestEvent();
-        $selectedEvent = $this->selectedEvent($selectedEventId, $ongoingTournament, $latestEvent);
+        $selectedEvent = $this->selectedEvent($selectedEventId, $activePanel, $ongoingTournament, $latestEvent);
 
         $data = [
             'stats' => $this->stats(includeUpcoming: true),
             'ongoingTournament' => $ongoingTournament,
-            'ongoingTournamentLink' => $ongoingTournament?->resolvedChallongeLink(),
             'latestEvent' => $latestEvent,
             'latestChampion' => $this->latestChampion($latestEvent),
             'latestEventPlacements' => collect(),
@@ -47,12 +49,14 @@ class EventOverviewService
             'awardLeaders' => collect(),
             'adminEvents' => collect(),
             'eventTypes' => collect(),
-            'awards' => collect(),
             'selectedEvent' => $selectedEvent,
             'selectedEventParticipants' => collect(),
             'selectedEventResults' => collect(),
             'selectedEventAwards' => collect(),
-            'selectedEventMatches' => collect(),
+            'selectedEventRounds' => collect(),
+            'selectedSwissStandings' => collect(),
+            'selectedDeckRegistrationTargets' => collect(),
+            'selectedMissingDeckRegistrations' => collect(),
         ];
 
         if ($activePanel === 'overview') {
@@ -67,11 +71,13 @@ class EventOverviewService
         }
 
         if ($activePanel === 'workspace') {
-            $data['awards'] = $this->awards();
             $data['selectedEventParticipants'] = $this->selectedEventParticipants($selectedEvent);
             $data['selectedEventResults'] = $this->selectedEventResults($selectedEvent);
             $data['selectedEventAwards'] = $this->selectedEventAwards($selectedEvent);
-            $data['selectedEventMatches'] = $this->selectedEventMatches($selectedEvent);
+            $data['selectedEventRounds'] = $this->selectedEventRounds($selectedEvent);
+            $data['selectedSwissStandings'] = $this->selectedSwissStandings($selectedEvent);
+            $data['selectedDeckRegistrationTargets'] = $this->selectedDeckRegistrationTargets($selectedEvent);
+            $data['selectedMissingDeckRegistrations'] = $this->selectedMissingDeckRegistrations($selectedEvent);
         }
 
         return $data;
@@ -107,6 +113,7 @@ class EventOverviewService
         return Event::query()
             ->with(['eventType', 'creator'])
             ->withCount('participants')
+            ->where('is_active', true)
             ->where('status', 'upcoming')
             ->orderBy('date')
             ->orderBy('id')
@@ -167,6 +174,7 @@ class EventOverviewService
         return Event::query()
             ->with(['eventType', 'creator'])
             ->withCount('participants')
+            ->orderByDesc('is_active')
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->get();
@@ -177,16 +185,19 @@ class EventOverviewService
         return EventType::query()->orderBy('name')->get();
     }
 
-    private function awards(): Collection
-    {
-        return Award::query()->orderBy('name')->get();
-    }
-
-    private function selectedEvent(?int $selectedEventId, ?Event $ongoingTournament, ?Event $latestEvent): ?Event
+    private function selectedEvent(?int $selectedEventId, string $activePanel, ?Event $ongoingTournament, ?Event $latestEvent): ?Event
     {
         $query = Event::query()
             ->with(['eventType', 'creator'])
             ->withCount('participants');
+
+        if ($activePanel === 'workspace') {
+            return $ongoingTournament;
+        }
+
+        if ($activePanel === 'events') {
+            return $selectedEventId ? $query->find($selectedEventId) : null;
+        }
 
         if ($selectedEventId) {
             return $query->find($selectedEventId);
@@ -203,10 +214,10 @@ class EventOverviewService
             return collect();
         }
 
-        return $event->participants()
-            ->with('user')
+        return $event->eventParticipants()
+            ->with('player.user')
             ->get()
-            ->sortBy(fn (Player $player) => strtolower($player->user->nickname))
+            ->sortBy(fn (EventParticipant $participant) => strtolower($participant->player->user->nickname))
             ->values();
     }
 
@@ -235,16 +246,44 @@ class EventOverviewService
             ->values();
     }
 
-    private function selectedEventMatches(?Event $event): Collection
+    private function selectedEventRounds(?Event $event): Collection
     {
         if (! $event) {
             return collect();
         }
 
-        return $event->matches()
-            ->with(['player1.user', 'player2.user', 'winner.user'])
-            ->orderByDesc('created_at')
+        return $event->rounds()
+            ->with(['matches.player1.user', 'matches.player2.user', 'matches.winner.user'])
+            ->orderByRaw("case when stage = 'swiss' then 0 when stage = 'single_elim' then 1 else 2 end")
+            ->orderBy('round_number')
             ->get();
+    }
+
+    private function selectedSwissStandings(?Event $event): Collection
+    {
+        if (! $event || ! $event->usesSwissBracket()) {
+            return collect();
+        }
+
+        return $this->bracketService->swissStandings($event);
+    }
+
+    private function selectedDeckRegistrationTargets(?Event $event): Collection
+    {
+        if (! $event) {
+            return collect();
+        }
+
+        return $this->bracketService->deckRegistrationTargets($event);
+    }
+
+    private function selectedMissingDeckRegistrations(?Event $event): Collection
+    {
+        if (! $event) {
+            return collect();
+        }
+
+        return $this->bracketService->missingDeckRegistrationTargets($event);
     }
 
     private function awardLeaders(): Collection

@@ -2,20 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Player;
-use App\Services\RankingService;
+use Illuminate\Http\RedirectResponse;
 
 class PlayerController extends Controller
 {
-    public function index(RankingService $rankingService)
+    public function index(): RedirectResponse
     {
-        $leaderboard = $rankingService->leaderboard();
-        $players = Player::query()
-            ->with('user')
-            ->orderBy('id')
-            ->get();
-        $playersWithoutResults = $rankingService->playersWithoutResults();
-
-        return view('players.index', compact('leaderboard', 'players', 'playersWithoutResults'));
+        return redirect()->route('dashboard', ['panel' => 'players']);
     }
 }
