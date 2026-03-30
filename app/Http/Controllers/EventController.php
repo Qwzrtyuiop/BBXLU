@@ -15,6 +15,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class EventController extends Controller
@@ -39,35 +40,11 @@ class EventController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $data = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'challonge_link' => ['nullable', 'url', 'max:2048'],
-            'challonge_url' => ['nullable', 'url', 'max:2048'],
-            'event_type_id' => ['required', 'exists:event_types,id'],
-            'date' => ['required', 'date'],
-            'location' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'in:upcoming,finished'],
-            'created_by_nickname' => ['required', 'string', 'max:255'],
-        ]);
-
+        $data = $this->validateEventData($request);
         $creator = $this->resolveCreator($data['created_by_nickname']);
-        $challongeLink = $data['challonge_link'] ?: ($data['challonge_url'] ?? null);
+        $event = Event::query()->create($this->buildEventPayload($data, $creator->id));
 
-        $event = Event::query()->create([
-            'title' => $data['title'],
-            'description' => $data['description'],
-            'challonge_link' => $challongeLink,
-            'challonge_url' => $challongeLink,
-            'event_type_id' => $data['event_type_id'],
-            'date' => $data['date'],
-            'location' => $data['location'],
-            'status' => $data['status'],
-            'created_by' => $creator->id,
-        ]);
-
-        return redirect()
-            ->route('events.show', $event)
+        return $this->redirectTarget($request, 'events.show', [$event], $event)
             ->with('status', 'Event created successfully.');
     }
 
@@ -80,44 +57,19 @@ class EventController extends Controller
 
     public function update(Request $request, Event $event): RedirectResponse
     {
-        $data = $request->validate([
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'challonge_link' => ['nullable', 'url', 'max:2048'],
-            'challonge_url' => ['nullable', 'url', 'max:2048'],
-            'event_type_id' => ['required', 'exists:event_types,id'],
-            'date' => ['required', 'date'],
-            'location' => ['nullable', 'string', 'max:255'],
-            'status' => ['required', 'in:upcoming,finished'],
-            'created_by_nickname' => ['required', 'string', 'max:255'],
-        ]);
-
+        $data = $this->validateEventData($request);
         $creator = $this->resolveCreator($data['created_by_nickname']);
-        $challongeLink = $data['challonge_link'] ?: ($data['challonge_url'] ?? null);
+        $event->update($this->buildEventPayload($data, $creator->id));
 
-        $event->update([
-            'title' => $data['title'],
-            'description' => $data['description'],
-            'challonge_link' => $challongeLink,
-            'challonge_url' => $challongeLink,
-            'event_type_id' => $data['event_type_id'],
-            'date' => $data['date'],
-            'location' => $data['location'],
-            'status' => $data['status'],
-            'created_by' => $creator->id,
-        ]);
-
-        return redirect()
-            ->route('events.show', $event)
+        return $this->redirectTarget($request, 'events.show', [$event], $event)
             ->with('status', 'Event updated successfully.');
     }
 
-    public function destroy(Event $event): RedirectResponse
+    public function destroy(Request $request, Event $event): RedirectResponse
     {
         $event->delete();
 
-        return redirect()
-            ->route('events.index')
+        return $this->redirectTarget($request, 'events.index')
             ->with('status', 'Event deleted.');
     }
 
@@ -155,48 +107,69 @@ class EventController extends Controller
     public function storeParticipant(Request $request, Event $event): RedirectResponse
     {
         $data = $request->validate([
-            'nickname' => ['required', 'string', 'max:255'],
+            'nickname' => ['nullable', 'string', 'max:255'],
+            'selected_nicknames' => ['nullable', 'array'],
+            'selected_nicknames.*' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $result = DB::transaction(function () use ($event, $data) {
-            $nickname = trim($data['nickname']);
+        $nicknames = $this->participantNicknames($data);
 
-            $user = User::query()->firstOrCreate(
-                ['nickname' => $nickname],
-                [
-                    'name' => null,
-                    'email' => null,
-                    'password' => null,
-                    'role' => 'user',
-                    'is_claimed' => false,
-                ]
-            );
+        if ($nicknames === []) {
+            return back()->withErrors([
+                'nickname' => 'Add at least one nickname before saving participants.',
+            ])->withInput();
+        }
 
-            $player = Player::query()->firstOrCreate([
-                'user_id' => $user->id,
-            ]);
+        $result = DB::transaction(function () use ($event, $nicknames) {
+            $summary = [
+                'participants_added' => 0,
+                'users_created' => 0,
+                'participants_existing' => 0,
+            ];
 
-            $participant = EventParticipant::query()->firstOrCreate([
-                'event_id' => $event->id,
-                'player_id' => $player->id,
-            ]);
+            foreach ($nicknames as $nickname) {
+                $user = User::query()->firstOrCreate(
+                    ['nickname' => $nickname],
+                    $this->autoCreatedUserAttributes($nickname)
+                );
 
-            return [$participant->wasRecentlyCreated, $user->wasRecentlyCreated];
+                if ($user->wasRecentlyCreated) {
+                    $summary['users_created']++;
+                }
+
+                $player = Player::query()->firstOrCreate([
+                    'user_id' => $user->id,
+                ]);
+
+                $participant = EventParticipant::query()->firstOrCreate([
+                    'event_id' => $event->id,
+                    'player_id' => $player->id,
+                ]);
+
+                if ($participant->wasRecentlyCreated) {
+                    $summary['participants_added']++;
+                } else {
+                    $summary['participants_existing']++;
+                }
+            }
+
+            return $summary;
         });
 
-        [$participantCreated, $userCreated] = $result;
+        $status = $this->participantStatusMessage(
+            $result['participants_added'],
+            $result['users_created'],
+            $result['participants_existing']
+        );
 
-        $status = $participantCreated
-            ? ($userCreated ? 'Participant added with auto-created account.' : 'Participant added successfully.')
-            : 'Participant already exists in this event.';
-
-        return redirect()->route('events.show', $event)->with('status', $status);
+        return $this->redirectTarget($request, 'events.show', [$event], $event)->with('status', $status);
     }
 
-    public function destroyParticipant(Event $event, Player $player): RedirectResponse
+    public function destroyParticipant(Request $request, Event $event, Player $player): RedirectResponse
     {
         if (! $this->isEventParticipant($event->id, $player->id)) {
-            return redirect()->route('events.show', $event)->with('status', 'Participant is not in this event.');
+            return $this->redirectTarget($request, 'events.show', [$event], $event)
+                ->with('status', 'Participant is not in this event.');
         }
 
         DB::transaction(function () use ($event, $player): void {
@@ -225,7 +198,8 @@ class EventController extends Controller
                 ->delete();
         });
 
-        return redirect()->route('events.show', $event)->with('status', 'Participant removed from event.');
+        return $this->redirectTarget($request, 'events.show', [$event], $event)
+            ->with('status', 'Participant removed from event.');
     }
 
     public function storeResult(Request $request, Event $event): RedirectResponse
@@ -254,10 +228,10 @@ class EventController extends Controller
             ])->withInput();
         }
 
-        return redirect()->route('events.show', $event)->with('status', 'Result saved.');
+        return $this->redirectTarget($request, 'events.show', [$event], $event)->with('status', 'Result saved.');
     }
 
-    public function destroyResult(Event $event, EventResult $result): RedirectResponse
+    public function destroyResult(Request $request, Event $event, EventResult $result): RedirectResponse
     {
         if ($result->event_id !== $event->id) {
             abort(404);
@@ -265,7 +239,7 @@ class EventController extends Controller
 
         $result->delete();
 
-        return redirect()->route('events.show', $event)->with('status', 'Result deleted.');
+        return $this->redirectTarget($request, 'events.show', [$event], $event)->with('status', 'Result deleted.');
     }
 
     public function storeAward(Request $request, Event $event): RedirectResponse
@@ -291,10 +265,11 @@ class EventController extends Controller
             ]
         );
 
-        return redirect()->route('events.show', $event)->with('status', 'Award assignment saved.');
+        return $this->redirectTarget($request, 'events.show', [$event], $event)
+            ->with('status', 'Award assignment saved.');
     }
 
-    public function destroyAward(Event $event, EventAward $eventAward): RedirectResponse
+    public function destroyAward(Request $request, Event $event, EventAward $eventAward): RedirectResponse
     {
         if ($eventAward->event_id !== $event->id) {
             abort(404);
@@ -302,7 +277,8 @@ class EventController extends Controller
 
         $eventAward->delete();
 
-        return redirect()->route('events.show', $event)->with('status', 'Award assignment deleted.');
+        return $this->redirectTarget($request, 'events.show', [$event], $event)
+            ->with('status', 'Award assignment deleted.');
     }
 
     public function storeMatch(Request $request, Event $event): RedirectResponse
@@ -348,10 +324,10 @@ class EventController extends Controller
             'round_number' => $data['round_number'],
         ]);
 
-        return redirect()->route('events.show', $event)->with('status', 'Match recorded.');
+        return $this->redirectTarget($request, 'events.show', [$event], $event)->with('status', 'Match recorded.');
     }
 
-    public function destroyMatch(Event $event, EventMatch $match): RedirectResponse
+    public function destroyMatch(Request $request, Event $event, EventMatch $match): RedirectResponse
     {
         if ($match->event_id !== $event->id) {
             abort(404);
@@ -359,7 +335,51 @@ class EventController extends Controller
 
         $match->delete();
 
-        return redirect()->route('events.show', $event)->with('status', 'Match deleted.');
+        return $this->redirectTarget($request, 'events.show', [$event], $event)->with('status', 'Match deleted.');
+    }
+
+    private function validateEventData(Request $request): array
+    {
+        return $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'description' => ['nullable', 'string'],
+            'challonge_link' => ['nullable', 'url', 'max:2048'],
+            'challonge_url' => ['nullable', 'url', 'max:2048'],
+            'event_type_id' => ['required', 'exists:event_types,id'],
+            'date' => ['required', 'date'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'status' => ['required', 'in:upcoming,finished'],
+            'created_by_nickname' => ['required', 'string', 'max:255'],
+        ]);
+    }
+
+    private function buildEventPayload(array $data, int $creatorId): array
+    {
+        $challongeLink = $this->normalizedChallongeLink($data);
+
+        return [
+            'title' => $data['title'],
+            'description' => $data['description'],
+            'challonge_link' => $challongeLink,
+            'challonge_url' => $challongeLink,
+            'event_type_id' => $data['event_type_id'],
+            'date' => $data['date'],
+            'location' => $data['location'],
+            'status' => $data['status'],
+            'created_by' => $creatorId,
+        ];
+    }
+
+    private function normalizedChallongeLink(array $data): ?string
+    {
+        foreach (['challonge_link', 'challonge_url'] as $field) {
+            $value = trim((string) ($data[$field] ?? ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     private function isEventParticipant(int $eventId, int $playerId): bool
@@ -372,15 +392,95 @@ class EventController extends Controller
 
     private function resolveCreator(string $nickname): User
     {
+        $nickname = trim($nickname);
+
         return User::query()->firstOrCreate(
-            ['nickname' => trim($nickname)],
-            [
-                'name' => null,
-                'email' => null,
-                'password' => null,
-                'role' => 'user',
-                'is_claimed' => false,
-            ]
+            ['nickname' => $nickname],
+            $this->autoCreatedUserAttributes($nickname)
         );
+    }
+
+    private function autoCreatedUserAttributes(string $nickname): array
+    {
+        return [
+            'name' => $nickname,
+            'email' => null,
+            'password' => null,
+            'role' => 'user',
+            'is_claimed' => false,
+        ];
+    }
+
+    private function participantNicknames(array $data): array
+    {
+        return collect(array_merge(
+            [$data['nickname'] ?? null],
+            $data['selected_nicknames'] ?? [],
+        ))
+            ->map(fn ($nickname) => trim((string) $nickname))
+            ->filter()
+            ->unique(fn (string $nickname) => Str::lower($nickname))
+            ->values()
+            ->all();
+    }
+
+    private function participantStatusMessage(int $participantsAdded, int $usersCreated, int $participantsExisting): string
+    {
+        if ($participantsAdded === 0) {
+            return $participantsExisting === 1
+                ? 'Participant already exists in this event.'
+                : 'All selected participants already exist in this event.';
+        }
+
+        if ($participantsAdded === 1 && $usersCreated === 1 && $participantsExisting === 0) {
+            return 'Participant added with auto-created account.';
+        }
+
+        if ($participantsAdded === 1 && $usersCreated === 0 && $participantsExisting === 0) {
+            return 'Participant added successfully.';
+        }
+
+        $status = $participantsAdded === 1
+            ? '1 participant added.'
+            : "{$participantsAdded} participants added.";
+
+        if ($usersCreated > 0) {
+            $status .= $usersCreated === 1
+                ? ' 1 user profile auto-created.'
+                : " {$usersCreated} user profiles auto-created.";
+        }
+
+        if ($participantsExisting > 0) {
+            $status .= $participantsExisting === 1
+                ? ' 1 participant was already in this event.'
+                : " {$participantsExisting} participants were already in this event.";
+        }
+
+        return $status;
+    }
+
+    private function redirectTarget(
+        Request $request,
+        string $fallbackRoute,
+        array $fallbackParameters = [],
+        ?Event $event = null
+    ): RedirectResponse {
+        if ($request->boolean('dashboard_redirect')) {
+            $panel = $request->string('dashboard_panel')->toString();
+            $panel = in_array($panel, ['overview', 'events', 'workspace', 'players'], true)
+                ? $panel
+                : 'overview';
+
+            $parameters = ['panel' => $panel];
+            $eventId = $event?->id ?: $request->integer('dashboard_event_id');
+
+            if ($eventId > 0) {
+                $parameters['event'] = $eventId;
+            }
+
+            return redirect()->route('dashboard', $parameters);
+        }
+
+        return redirect()->route($fallbackRoute, $fallbackParameters);
     }
 }

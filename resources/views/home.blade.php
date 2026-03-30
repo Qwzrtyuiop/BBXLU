@@ -1,33 +1,25 @@
 <x-layouts.public :title="'BBX La Union'">
     <div class="mx-auto w-full xl:max-w-[48rem] 2xl:max-w-[56rem] min-[1792px]:max-w-6xl">
-    <section class="mb-10 sm:mb-12">
-        <div class="relative px-4 pt-10 pb-8 sm:px-6 sm:pt-12 sm:pb-10 lg:px-10">
+    <section data-intro-half class="mb-10 flex min-h-[calc(100svh-8.8rem)] items-start sm:mb-12">
+        <div data-intro-fit class="relative w-full px-4 py-3 sm:px-6 sm:py-4 lg:px-10">
             <div class="mx-auto max-w-4xl text-center">
-                <div class="relative mx-auto mb-2 flex h-44 w-44 items-center justify-center sm:h-56 sm:w-56 lg:h-72 lg:w-72 xl:h-80 xl:w-80">
+                <div class="relative mx-auto mb-2 flex h-[clamp(7rem,18vh,16rem)] w-[clamp(7rem,18vh,16rem)] items-center justify-center">
                     <div class="absolute inset-6 rounded-full bg-cyan-400/10 blur-2xl"></div>
-                    <div class="relative flex h-36 w-36 items-center justify-center sm:h-44 sm:w-44 lg:h-56 lg:w-56 xl:h-64 xl:w-64">
+                    <div class="relative flex h-[clamp(5.8rem,14.5vh,13rem)] w-[clamp(5.8rem,14.5vh,13rem)] items-center justify-center">
                         <img src="{{ asset('images/lu.png') }}" alt="La Union Bladers" class="relative h-[100%] w-[100%] object-contain" />
                     </div>
                 </div>
-                <p class="type-headline mt-2 text-[clamp(2rem,8vw,5.25rem)] leading-[0.95] text-cyan-100 drop-shadow-[0_0_14px_rgba(34,211,238,0.6)] sm:tracking-[0.12em]">
-                    WELCOME TO SEASON 2
+                <p class="type-headline mt-2 text-[clamp(1.9rem,7vw,4.4rem)] leading-[0.95] text-cyan-100 drop-shadow-[0_0_14px_rgba(34,211,238,0.6)] sm:tracking-[0.12em]">
+                    PALDO SA NORTE SEASON 2
                 </p>
                 <p class="type-body mx-auto mt-4 max-w-2xl px-2 text-sm text-slate-300 sm:text-base">
                     Wala parin Kaming DTI Permit.
                 </p>
-                <div class="mt-6 flex w-full flex-wrap items-center justify-center gap-3">
-                    <a href="{{ route('home') }}#register" class="type-label w-full rounded-none border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-200 transition hover:bg-amber-500/20 sm:w-auto">
-                        Register Now
-                    </a>
-                    <a href="{{ route('home') }}#players" class="type-label w-full rounded-none border border-slate-600 bg-slate-900/75 px-4 py-2 text-center text-xs text-slate-200 transition hover:border-cyan-400 hover:text-cyan-200 sm:w-auto">
-                        View Players
-                    </a>
-                </div>
             </div>
 
-            <div class="mx-auto mt-10 max-w-5xl sm:mt-12">
+            <div class="mx-auto mt-5 max-w-5xl sm:mt-6">
                 <div class="grid gap-4 sm:grid-cols-2 sm:items-stretch sm:gap-5 xl:grid-cols-3">
-                    <article class="group flex min-h-[185px] flex-col items-center justify-center px-6 py-7 text-center transition duration-200 hover:-translate-y-1 sm:min-h-[205px]">
+                    <article class="group flex min-h-[150px] flex-col items-center justify-center px-5 py-5 text-center transition duration-200 hover:-translate-y-1 sm:min-h-[168px]">
                         <h3 class="type-kicker text-sm text-cyan-200">Users</h3>
                         <p class="type-stat mt-4 text-4xl leading-none text-amber-200">{{ $stats['users'] }}</p>
                         <p class="type-body mt-3 text-xs text-slate-300">Registered accounts connected to ELYU BladerHub.</p>
@@ -36,7 +28,7 @@
                         </div>
                     </article>
 
-                    <article class="group flex min-h-[185px] flex-col items-center justify-center px-6 py-7 text-center transition duration-200 hover:-translate-y-1 sm:min-h-[205px]">
+                    <article class="group flex min-h-[150px] flex-col items-center justify-center px-5 py-5 text-center transition duration-200 hover:-translate-y-1 sm:min-h-[168px]">
                         <h3 class="type-kicker text-sm text-emerald-200">Players</h3>
                         <p class="type-stat mt-4 text-4xl leading-none text-amber-200">{{ $stats['players'] }}</p>
                         <p class="type-body mt-3 text-xs text-slate-300">Bladers from La Union and challengers from other regions.</p>
@@ -45,7 +37,7 @@
                         </div>
                     </article>
 
-                    <article class="group flex min-h-[185px] flex-col items-center justify-center px-6 py-7 text-center transition duration-200 hover:-translate-y-1 sm:min-h-[205px]">
+                    <article class="group flex min-h-[150px] flex-col items-center justify-center px-5 py-5 text-center transition duration-200 hover:-translate-y-1 sm:min-h-[168px]">
                         <h3 class="type-kicker text-sm text-amber-200">Events</h3>
                         <p class="type-stat mt-4 text-4xl leading-none text-amber-200">{{ $stats['events'] }}</p>
                         <p class="type-body mt-3 text-xs text-slate-300">Tournaments and sessions recorded in this season.</p>
@@ -56,11 +48,21 @@
                 </div>
             </div>
 
-            <div class="mx-auto mt-10 w-full max-w-6xl border-t-4 border-cyan-300/80"></div>
+            <div class="mt-5 flex justify-center">
+                <button
+                    type="button"
+                    data-proceed-btn
+                    class="type-label inline-flex items-center justify-center border border-cyan-300/65 bg-cyan-400/10 px-8 py-2.5 text-xs text-cyan-100 transition hover:bg-cyan-400/20"
+                >
+                    Proceed
+                </button>
+            </div>
+
+            <div class="mx-auto mt-5 w-full max-w-6xl border-t-4 border-cyan-300/80"></div>
         </div>
     </section>
 
-    <section id="players" class="mb-10 sm:mb-12 xl:mb-6" data-events-anchor>
+    <section id="players" class="mb-10 scroll-mt-24 sm:mb-12 xl:mb-6" data-events-anchor data-second-half>
         <article class="mx-auto w-full max-w-6xl bg-slate-900/70 p-4 ring-1 ring-amber-400/35 sm:p-8 lg:p-9">
                 <div class="mb-6 border-b border-slate-800/80 pb-4">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -69,6 +71,15 @@
                             <h1 class="type-headline mt-1 text-2xl text-amber-100 sm:text-3xl">Events</h1>
                         </div>
                         <div class="flex items-center gap-2">
+                            @if (config('app.debug'))
+                                <button
+                                    type="button"
+                                    data-debug-return
+                                    class="type-label inline-flex h-9 items-center justify-center border border-rose-400/60 bg-rose-500/10 px-3 text-[10px] text-rose-200 transition hover:bg-rose-500/20"
+                                >
+                                    Debug Return
+                                </button>
+                            @endif
                             <button
                                 type="button"
                                 data-carousel-prev
@@ -390,7 +401,7 @@
         </article>
     </section>
 
-    <section id="register" class="bg-slate-900/80 p-6 ring-1 ring-amber-400/35">
+    <section id="register" class="scroll-mt-24 bg-slate-900/80 p-6 ring-1 ring-amber-400/35">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <p class="type-kicker text-xs text-amber-300">Register</p>

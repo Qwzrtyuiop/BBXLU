@@ -11,7 +11,9 @@
                 @if ($event->description)
                     <p class="mt-3 max-w-3xl text-sm text-slate-300">{{ $event->description }}</p>
                 @endif
-                @php($eventChallongeLink = $event->challonge_link ?: $event->challonge_url)
+                @php
+                    $eventChallongeLink = $event->resolvedChallongeLink();
+                @endphp
                 @if ($eventChallongeLink)
                     <a
                         href="{{ $eventChallongeLink }}"

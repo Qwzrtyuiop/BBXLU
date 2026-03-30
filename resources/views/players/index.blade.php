@@ -41,7 +41,7 @@
                         <p class="text-xs text-slate-400">
                             player_id: {{ $player->id }}
                             @if (! $player->user->is_claimed)
-                                • auto account
+                                - auto account
                             @endif
                         </p>
                     </div>

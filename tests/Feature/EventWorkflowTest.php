@@ -38,6 +38,7 @@ class EventWorkflowTest extends TestCase
         $response->assertRedirect(route('events.show', $event));
         $this->assertDatabaseHas('users', [
             'nickname' => 'newbie',
+            'name' => 'newbie',
             'email' => null,
             'is_claimed' => 0,
         ]);
@@ -49,6 +50,46 @@ class EventWorkflowTest extends TestCase
             'event_id' => $event->id,
             'player_id' => $player->id,
         ]);
+    }
+
+    public function test_adding_multiple_selected_participants_creates_missing_profiles_once(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'host-batch']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Batch Weekly',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'date' => '2026-03-26',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $existingUser = User::factory()->create([
+            'nickname' => 'alpha',
+            'is_claimed' => true,
+        ]);
+        $existingPlayer = Player::query()->create([
+            'user_id' => $existingUser->id,
+        ]);
+        EventParticipant::query()->create([
+            'event_id' => $event->id,
+            'player_id' => $existingPlayer->id,
+        ]);
+
+        $response = $this->post(route('events.participants.store', $event), [
+            'selected_nicknames' => ['alpha', 'bravo', 'charlie', 'bravo'],
+        ]);
+
+        $response->assertRedirect(route('events.show', $event));
+
+        $this->assertDatabaseHas('users', ['nickname' => 'bravo', 'name' => 'bravo', 'is_claimed' => 0]);
+        $this->assertDatabaseHas('users', ['nickname' => 'charlie', 'name' => 'charlie', 'is_claimed' => 0]);
+        $this->assertSame(3, EventParticipant::query()->where('event_id', $event->id)->count());
     }
 
     public function test_match_winner_is_inferred_from_scores(): void

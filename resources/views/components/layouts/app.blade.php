@@ -9,38 +9,81 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-gradient-to-b from-slate-900 via-slate-950 to-black text-slate-100 antialiased">
-    <div class="mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8">
-        <header class="mb-8 rounded-2xl border border-amber-400/30 bg-slate-900/60 p-4 backdrop-blur">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                    <p class="text-xs uppercase tracking-[0.2em] text-amber-300">BBXLU Event Hub</p>
-                    <h1 class="text-2xl font-bold text-amber-100">Tournament Control Panel</h1>
+    @php
+        $isFullScreen = (bool) ($fullScreen ?? false);
+        $hideTopSelectors = (bool) ($hideTopSelectors ?? false);
+        $hideFrameHeader = (bool) ($hideFrameHeader ?? false);
+        $containerClasses = $isFullScreen
+            ? 'w-full px-3 pb-3 pt-3 sm:px-4 lg:px-5'
+            : 'mx-auto max-w-6xl px-4 pb-12 pt-8 sm:px-6 lg:px-8';
+        $headerClasses = $isFullScreen
+            ? 'mb-3 rounded-xl border border-amber-400/25 bg-slate-900/60 p-3 backdrop-blur'
+            : 'mb-8 rounded-2xl border border-amber-400/30 bg-slate-900/60 p-4 backdrop-blur';
+        $kickerClasses = $isFullScreen
+            ? 'text-[10px] uppercase tracking-[0.2em] text-amber-300'
+            : 'text-xs uppercase tracking-[0.2em] text-amber-300';
+        $titleClasses = $isFullScreen
+            ? 'text-lg font-bold text-amber-100'
+            : 'text-2xl font-bold text-amber-100';
+        $navClasses = $isFullScreen
+            ? 'flex flex-wrap items-center gap-1.5'
+            : 'flex flex-wrap items-center gap-2';
+        $navLinkClasses = $isFullScreen
+            ? 'rounded-md border border-slate-700 px-2.5 py-1.5 text-xs font-medium hover:border-amber-400 hover:text-amber-200'
+            : 'rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium hover:border-amber-400 hover:text-amber-200';
+        $userBadgeClasses = $isFullScreen
+            ? 'rounded-md border border-slate-700 px-2.5 py-1.5 text-xs text-slate-300'
+            : 'rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300';
+        $logoutButtonClasses = $isFullScreen
+            ? 'rounded-md border border-rose-500/60 px-2.5 py-1.5 text-xs font-medium text-rose-200 hover:bg-rose-500/10'
+            : 'rounded-lg border border-rose-500/60 px-3 py-2 text-sm font-medium text-rose-200 hover:bg-rose-500/10';
+        $statusClasses = $isFullScreen
+            ? 'mb-3 rounded-xl border border-emerald-500/40 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200'
+            : 'mb-6 rounded-xl border border-emerald-500/40 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200';
+        $errorClasses = $isFullScreen
+            ? 'mb-3 rounded-xl border border-rose-500/40 bg-rose-900/30 px-4 py-3 text-sm text-rose-200'
+            : 'mb-6 rounded-xl border border-rose-500/40 bg-rose-900/30 px-4 py-3 text-sm text-rose-200';
+        $mainClasses = ! $isFullScreen
+            ? ''
+            : ($hideFrameHeader ? 'min-h-[calc(100svh-5.25rem)]' : 'min-h-[calc(100svh-8.8rem)]');
+    @endphp
+
+    <div class="{{ $containerClasses }}">
+        @unless ($hideFrameHeader)
+            <header class="{{ $headerClasses }}">
+                <div class="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <p class="{{ $kickerClasses }}">BBXLU Event Hub</p>
+                        <h1 class="{{ $titleClasses }}">Tournament Control Panel</h1>
+                    </div>
+                    @if (! $hideTopSelectors)
+                        <nav class="{{ $navClasses }}">
+                            <a href="{{ route('dashboard') }}" class="{{ $navLinkClasses }}">Dashboard</a>
+                            <a href="{{ route('events.index') }}" class="{{ $navLinkClasses }}">Events</a>
+                            <a href="{{ route('players.index') }}" class="{{ $navLinkClasses }}">Players</a>
+                            <span class="{{ $userBadgeClasses }}">
+                                {{ auth()->user()->nickname }}
+                            </span>
+                            <form action="{{ route('logout') }}" method="POST">
+                                @csrf
+                                <button class="{{ $logoutButtonClasses }}">
+                                    Logout
+                                </button>
+                            </form>
+                        </nav>
+                    @endif
                 </div>
-                <nav class="flex flex-wrap items-center gap-2">
-                    <a href="{{ route('dashboard') }}" class="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium hover:border-amber-400 hover:text-amber-200">Dashboard</a>
-                    <a href="{{ route('events.index') }}" class="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium hover:border-amber-400 hover:text-amber-200">Events</a>
-                    <a href="{{ route('players.index') }}" class="rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium hover:border-amber-400 hover:text-amber-200">Players</a>
-                    <span class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300">
-                        {{ auth()->user()->nickname }}
-                    </span>
-                    <form action="{{ route('logout') }}" method="POST">
-                        @csrf
-                        <button class="rounded-lg border border-rose-500/60 px-3 py-2 text-sm font-medium text-rose-200 hover:bg-rose-500/10">
-                            Logout
-                        </button>
-                    </form>
-                </nav>
-            </div>
-        </header>
+            </header>
+        @endunless
 
         @if (session('status'))
-            <div class="mb-6 rounded-xl border border-emerald-500/40 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200">
+            <div class="{{ $statusClasses }}">
                 {{ session('status') }}
             </div>
         @endif
 
         @if ($errors->any())
-            <div class="mb-6 rounded-xl border border-rose-500/40 bg-rose-900/30 px-4 py-3 text-sm text-rose-200">
+            <div class="{{ $errorClasses }}">
                 <p class="mb-2 font-semibold">Please fix the following:</p>
                 <ul class="list-disc space-y-1 pl-5">
                     @foreach ($errors->all() as $error)
@@ -50,7 +93,7 @@
             </div>
         @endif
 
-        <main>
+        <main class="{{ $mainClasses }}">
             {{ $slot }}
         </main>
     </div>

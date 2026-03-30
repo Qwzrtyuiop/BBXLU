@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (! $this->shouldSeedFakeLinks()) {
+            return;
+        }
+
         if (! Schema::hasColumn('events', 'challonge_link') || ! Schema::hasColumn('events', 'challonge_url')) {
             return;
         }
@@ -54,6 +58,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (! $this->shouldSeedFakeLinks()) {
+            return;
+        }
+
         if (Schema::hasColumn('events', 'challonge_link')) {
             DB::table('events')
                 ->where('challonge_link', 'like', 'https://challonge.com/bbxlu_event_%')
@@ -66,5 +74,9 @@ return new class extends Migration
                 ->update(['challonge_url' => null]);
         }
     }
-};
 
+    private function shouldSeedFakeLinks(): bool
+    {
+        return app()->environment('local');
+    }
+};
