@@ -196,7 +196,7 @@
                         <p class="type-body mt-1 text-xs text-slate-400">{{ $currentLiveRoundLabel }}</p>
                     </div>
 
-                    <div class="mt-3 border border-slate-800/80 bg-slate-950/55 px-3 py-2">
+                    <!-- <div class="mt-3 border border-slate-800/80 bg-slate-950/55 px-3 py-2">
                         <p class="type-kicker text-[10px] text-slate-500">Live Focus</p>
                         @if ($currentLiveMatch)
                             <p class="type-body mt-1 text-xs leading-snug text-slate-200 break-words">
@@ -205,7 +205,7 @@
                         @else
                             <p class="type-body mt-1 text-xs leading-snug text-slate-400">No unresolved match right now.</p>
                         @endif
-                    </div>
+                    </div> -->
 
                     <a href="{{ route('live.viewer.event', $ongoingTournament) }}" class="type-label mt-3 inline-flex w-full items-center justify-center border border-emerald-400/60 bg-emerald-400/10 px-3 py-2 text-[10px] text-emerald-100 transition hover:bg-emerald-400/18">
                         Open Live Viewer
