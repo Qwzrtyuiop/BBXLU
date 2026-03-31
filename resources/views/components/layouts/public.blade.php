@@ -15,6 +15,18 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+    @php
+        $authUser = auth()->user();
+        $isAuthenticated = (bool) $authUser;
+        $isAdmin = $isAuthenticated && $authUser->role === 'admin';
+        $homeActionLabel = $isAuthenticated
+            ? ($isAdmin ? 'Dashboard' : 'My Dashboard')
+            : 'Login';
+        $homeActionHref = $isAuthenticated
+            ? ($isAdmin ? route('dashboard') : route('user.dashboard'))
+            : route('login');
+        $isHomePage = request()->routeIs('home');
+    @endphp
     <div class="fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(251,191,36,0.14),transparent_28%),radial-gradient(circle_at_82%_8%,rgba(14,165,233,0.13),transparent_24%),linear-gradient(180deg,#020617_0%,#0b1120_55%,#0a0f1c_100%)]"></div>
     <div class="clash-flash clash-flash-left hidden lg:block" aria-hidden="true"></div>
     <div class="clash-flash clash-flash-right hidden lg:block" aria-hidden="true"></div>
@@ -70,15 +82,25 @@
                     <span class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200 sm:text-sm sm:tracking-[0.26em]">ELYU BladerHub</span>
                 </a>
                 <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-                    <a href="{{ route('home') }}#players" class="flex-1 rounded-none border border-slate-700 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-200 hover:border-amber-500 hover:text-amber-200 sm:flex-none">
+                    <a href="{{ route('players.index') }}" class="flex-1 rounded-none border border-slate-700 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-200 hover:border-amber-500 hover:text-amber-200 sm:flex-none">
                         Players
                     </a>
-                    <a href="{{ route('home') }}#register" class="flex-1 rounded-none border border-slate-700 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-200 hover:border-amber-500 hover:text-amber-200 sm:flex-none">
-                        Register
+                    @unless ($isHomePage)
+                        <a href="{{ route('register') }}" class="flex-1 rounded-none border border-slate-700 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-slate-200 hover:border-amber-500 hover:text-amber-200 sm:flex-none">
+                            Register
+                        </a>
+                    @endunless
+                    <a href="{{ $homeActionHref }}" class="flex-1 rounded-none border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-amber-200 hover:bg-amber-500/20 sm:flex-none">
+                        {{ $homeActionLabel }}
                     </a>
-                    <a href="{{ route('login') }}" class="flex-1 rounded-none border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-amber-200 hover:bg-amber-500/20 sm:flex-none">
-                        Login
-                    </a>
+                    @if ($isAuthenticated)
+                        <form action="{{ route('logout') }}" method="POST" class="flex-1 sm:flex-none">
+                            @csrf
+                            <button type="submit" class="w-full rounded-none border border-rose-500/60 px-4 py-2 text-center text-xs font-semibold uppercase tracking-wider text-rose-200 transition hover:bg-rose-500/10">
+                                Logout
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </div>
         </div>
@@ -90,12 +112,23 @@
 
     @unless ($hideFooter)
         <footer class="border-t border-slate-800/70 bg-slate-950/70">
-            <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-3 px-4 py-4 text-xs text-slate-400 sm:justify-between sm:px-6 lg:px-8">
-                <p class="text-center sm:text-left">&copy; 2026 La Union Bladers +</p>
-                <div class="flex items-center gap-2">
+            <div class="mx-auto grid w-full max-w-6xl gap-3 px-4 py-4 text-xs text-slate-400 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:px-6 lg:px-8">
+                <p class="text-center sm:text-left">&copy; 2026 Sino si Dylan</p>
+                <p class="text-center">ver 0.01b</p>
+                <div class="flex items-center justify-center gap-2 ism:justify-self-end">
+                    <p class="text-center sm:text-left">mga paldo</p>
                     <img src="{{ asset('images/agoo.png') }}" alt="Agoo icon" title="Agoo Bladers" class="h-6 w-6 object-contain" />
                     <img src="{{ asset('images/kimat.png') }}" alt="Kimat icon" title="Doc Kimat" class="h-6 w-6 object-contain" />
-                    <img src="{{ asset('images/lu.png') }}" alt="La Union icon" title="La Union Bladers" class="h-6 w-6 object-contain" />
+                    <img src="{{ asset('images/lu.png') }}" alt="luceganasi" title="La Union Bladers" class="h-6 w-6 object-contain" />
+                    <a
+                        href="https://www.facebook.com/areyougoodbro"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Di nagbabayad EF"
+                        class="inline-flex"
+                    >
+                        <img src="{{ asset('images/jp cruz.png') }}" alt="JP Cruz icon" class="h-6 w-6 object-contain" />
+                    </a>
                 </div>
             </div>
         </footer>

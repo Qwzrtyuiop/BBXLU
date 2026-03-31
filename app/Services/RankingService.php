@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\EventAward;
+use App\Models\EventMatch;
+use App\Models\EventParticipant;
 use App\Models\Player;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
@@ -44,6 +47,145 @@ class RankingService
         return $rankedRows
             ->concat($unrankedRows)
             ->values();
+    }
+
+    public function leaderboardProfilePreviews(Collection $leaderboard): Collection
+    {
+        $playerIds = $leaderboard
+            ->pluck('player_id')
+            ->filter()
+            ->values();
+
+        if ($playerIds->isEmpty()) {
+            return collect();
+        }
+
+        $players = Player::query()
+            ->with('user')
+            ->whereIn('id', $playerIds)
+            ->get()
+            ->keyBy('id');
+
+        $podiumCounts = DB::table('event_results')
+            ->selectRaw('player_id, count(*) as total')
+            ->whereIn('player_id', $playerIds)
+            ->whereBetween('placement', [1, 3])
+            ->groupBy('player_id')
+            ->pluck('total', 'player_id');
+
+        $awardCounts = EventAward::query()
+            ->selectRaw('player_id, count(*) as total')
+            ->whereIn('player_id', $playerIds)
+            ->groupBy('player_id')
+            ->pluck('total', 'player_id');
+
+        $participantRows = EventParticipant::query()
+            ->whereIn('player_id', $playerIds)
+            ->get();
+
+        $mostUsedBeys = $participantRows
+            ->groupBy('player_id')
+            ->map(function (Collection $rows): array {
+                $usage = collect();
+
+                foreach ($rows as $participant) {
+                    foreach ([$participant->deck_bey1, $participant->deck_bey2, $participant->deck_bey3] as $bey) {
+                        if (! filled($bey)) {
+                            continue;
+                        }
+
+                        $normalized = trim((string) $bey);
+                        $usage->put($normalized, ((int) $usage->get($normalized, 0)) + 1);
+                    }
+                }
+
+                $name = $usage->sortDesc()->keys()->first();
+
+                return [
+                    'name' => $name,
+                    'count' => $name ? (int) $usage->get($name, 0) : 0,
+                ];
+            });
+
+        $matchStats = $playerIds->mapWithKeys(fn ($playerId) => [
+            (int) $playerId => [
+                'wins' => 0,
+                'losses' => 0,
+                'matches' => 0,
+                'score_sum' => 0,
+            ],
+        ]);
+
+        $matches = EventMatch::query()
+            ->where('status', 'completed')
+            ->whereNotNull('player2_id')
+            ->where('is_bye', false)
+            ->where(function ($query) use ($playerIds): void {
+                $query->whereIn('player1_id', $playerIds)
+                    ->orWhereIn('player2_id', $playerIds);
+            })
+            ->get(['player1_id', 'player2_id', 'winner_id', 'player1_score', 'player2_score']);
+
+        foreach ($matches as $match) {
+            foreach ([
+                ['id' => (int) $match->player1_id, 'score' => (int) $match->player1_score],
+                ['id' => (int) $match->player2_id, 'score' => (int) $match->player2_score],
+            ] as $side) {
+                if (! $matchStats->has($side['id'])) {
+                    continue;
+                }
+
+                $stats = $matchStats->get($side['id']);
+                $stats['matches']++;
+                $stats['score_sum'] += $side['score'];
+
+                if ((int) $match->winner_id === $side['id']) {
+                    $stats['wins']++;
+                } else {
+                    $stats['losses']++;
+                }
+
+                $matchStats->put($side['id'], $stats);
+            }
+        }
+
+        return $leaderboard->mapWithKeys(function ($row) use ($players, $podiumCounts, $awardCounts, $mostUsedBeys, $matchStats): array {
+            $playerId = (int) $row->player_id;
+            $player = $players->get($playerId);
+            $stats = $matchStats->get($playerId, [
+                'wins' => 0,
+                'losses' => 0,
+                'matches' => 0,
+                'score_sum' => 0,
+            ]);
+            $mostUsed = $mostUsedBeys->get($playerId, ['name' => null, 'count' => 0]);
+
+            return [
+                $playerId => [
+                    'player_id' => $playerId,
+                    'nickname' => $row->nickname,
+                    'name' => $player?->user?->name ?: $row->nickname,
+                    'rank' => $row->rank !== null ? (int) $row->rank : null,
+                    'is_ranked' => (bool) ($row->is_ranked ?? true),
+                    'points' => (int) $row->points,
+                    'events_played' => (int) $row->events_played,
+                    'first_places' => (int) $row->first_places,
+                    'podiums' => (int) ($podiumCounts[$playerId] ?? 0),
+                    'awards' => (int) ($awardCounts[$playerId] ?? 0),
+                    'is_claimed' => (bool) $row->is_claimed,
+                    'match_wins' => (int) $stats['wins'],
+                    'match_losses' => (int) $stats['losses'],
+                    'win_rate' => (int) $stats['matches'] > 0
+                        ? round(((int) $stats['wins'] / (int) $stats['matches']) * 100, 1)
+                        : null,
+                    'avg_score' => (int) $stats['matches'] > 0
+                        ? round(((int) $stats['score_sum'] / (int) $stats['matches']), 1)
+                        : null,
+                    'most_used_bey' => $mostUsed['name'],
+                    'most_used_bey_count' => (int) ($mostUsed['count'] ?? 0),
+                ],
+            ];
+        });
     }
 
     private function leaderboardRows(?int $limit = 50): Collection

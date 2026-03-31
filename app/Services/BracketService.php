@@ -1106,8 +1106,6 @@ class BracketService
 
                 return;
             }
-
-            $this->assignAutomaticAward($event, 'Bird King', $championId);
         });
     }
 

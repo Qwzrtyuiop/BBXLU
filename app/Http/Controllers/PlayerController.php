@@ -2,12 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\RedirectResponse;
+use App\Services\RankingService;
+use Illuminate\View\View;
 
 class PlayerController extends Controller
 {
-    public function index(): RedirectResponse
+    public function index(RankingService $rankingService): View
     {
-        return redirect()->route('dashboard', ['panel' => 'players']);
+        $leaderboard = $rankingService->leaderboardWithAllPlayers();
+
+        return view('players.index', [
+            'leaderboard' => $leaderboard,
+            'leaderboardProfiles' => $rankingService->leaderboardProfilePreviews($leaderboard),
+        ]);
     }
 }

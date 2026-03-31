@@ -952,7 +952,7 @@ class EventWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_completed_single_elimination_event_auto_generates_results_and_bird_king_award(): void
+    public function test_completed_single_elimination_event_auto_generates_results_without_awards(): void
     {
         $this->actingAs($this->createAdmin());
 
@@ -1013,11 +1013,7 @@ class EventWorkflowTest extends TestCase
             'player_id' => $players[1]->id,
             'placement' => 2,
         ]);
-        $this->assertDatabaseHas('event_awards', [
-            'event_id' => $event->id,
-            'player_id' => $players[0]->id,
-            'award_id' => Award::query()->where('name', 'Bird King')->value('id'),
-        ]);
+        $this->assertSame(0, EventAward::query()->where('event_id', $event->id)->count());
     }
 
     public function test_completed_event_can_regenerate_automatic_awards(): void
@@ -1078,11 +1074,7 @@ class EventWorkflowTest extends TestCase
         ]);
 
         $response->assertRedirect($this->workspaceRoute($event));
-        $this->assertDatabaseHas('event_awards', [
-            'event_id' => $event->id,
-            'player_id' => $players[0]->id,
-            'award_id' => Award::query()->where('name', 'Bird King')->value('id'),
-        ]);
+        $this->assertSame(0, EventAward::query()->where('event_id', $event->id)->count());
     }
 
     public function test_single_elimination_round_one_requires_registered_decks_when_deck_lock_is_disabled(): void

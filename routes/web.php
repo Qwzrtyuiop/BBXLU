@@ -10,6 +10,7 @@ use App\Http\Controllers\UserDashboardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+Route::get('/players', [PlayerController::class, 'index'])->name('players.index');
 Route::get('/live', [LiveViewerController::class, 'index'])->name('live.viewer');
 Route::get('/live/match/{match}', [LiveViewerController::class, 'showMatch'])
     ->whereNumber('match')
@@ -30,10 +31,13 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/userdashboard', UserDashboardController::class)->name('user.dashboard');
 });
 
+Route::get('/userdashboard/{player}', [UserDashboardController::class, 'show'])
+    ->whereNumber('player')
+    ->name('user.dashboard.profile');
+
 Route::middleware(['auth', 'admin'])->group(function (): void {
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
-    Route::get('/players', [PlayerController::class, 'index'])->name('players.index');
 
     Route::resource('events', EventController::class)->except(['show'])->parameters([
         'events' => 'event',

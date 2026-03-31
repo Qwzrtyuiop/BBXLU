@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const introHalf = document.querySelector('[data-intro-half]');
     const secondHalf = document.querySelector('[data-second-half]');
     const proceedButton = document.querySelector('[data-proceed-btn]');
+    const skipIntroButton = document.querySelector('[data-skip-intro-btn]');
     const debugReturnButton = document.querySelector('[data-debug-return]');
 
     if (introHalf && secondHalf && proceedButton) {
@@ -50,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const introFit = introHalf.querySelector('[data-intro-fit]');
         const stickyHeader = document.querySelector('header.sticky');
         let minSecondHalfTop = null;
+        let secondHalfEntered = false;
 
         const lockInitialScroll = () => {
             root.style.overflowY = 'hidden';
@@ -85,6 +87,27 @@ document.addEventListener('DOMContentLoaded', () => {
             body.style.overflowY = '';
         };
 
+        const teardownIntroFit = () => {
+            window.removeEventListener('resize', scheduleIntroFit);
+            window.removeEventListener('load', scheduleIntroFit);
+            if (introFit) {
+                introFit.style.transform = '';
+                introFit.style.transformOrigin = '';
+            }
+        };
+
+        const setIntroButtonsDisabled = (disabled) => {
+            proceedButton.disabled = disabled;
+            proceedButton.classList.toggle('opacity-60', disabled);
+            proceedButton.classList.toggle('cursor-not-allowed', disabled);
+
+            if (skipIntroButton) {
+                skipIntroButton.disabled = disabled;
+                skipIntroButton.classList.toggle('opacity-60', disabled);
+                skipIntroButton.classList.toggle('cursor-not-allowed', disabled);
+            }
+        };
+
         const keepSecondHalfLocked = () => {
             if (minSecondHalfTop === null) {
                 return;
@@ -114,43 +137,56 @@ document.addEventListener('DOMContentLoaded', () => {
         const clashDurationMs = 1660;
         const clashTransitionMs = clashDurationMs;
         const lockSecondHalfDelayMs = 500;
+        const immediateLockDelayMs = 120;
 
-        proceedButton.addEventListener('click', () => {
-            if (proceedButton.disabled) {
+        const revealSecondHalf = (lockDelayMs) => {
+            unlockScroll();
+            teardownIntroFit();
+
+            minSecondHalfTop = getSecondHalfTargetTop();
+            window.scrollTo({ top: minSecondHalfTop, behavior: 'smooth' });
+
+            window.setTimeout(() => {
+                keepSecondHalfLocked();
+                window.addEventListener('scroll', keepSecondHalfLocked, { passive: true });
+            }, lockDelayMs);
+        };
+
+        const enterSecondHalf = ({ withClash }) => {
+            if (secondHalfEntered) {
                 return;
             }
 
-            proceedButton.disabled = true;
-            proceedButton.classList.add('opacity-60', 'cursor-not-allowed');
-            body.classList.add('clash-play');
+            secondHalfEntered = true;
+            setIntroButtonsDisabled(true);
 
-            window.setTimeout(() => {
-                unlockScroll();
-                window.removeEventListener('resize', scheduleIntroFit);
-                window.removeEventListener('load', scheduleIntroFit);
-                if (introFit) {
-                    introFit.style.transform = '';
-                    introFit.style.transformOrigin = '';
-                }
-
-                minSecondHalfTop = getSecondHalfTargetTop();
-                window.scrollTo({ top: minSecondHalfTop, behavior: 'smooth' });
-
+            if (withClash) {
+                body.classList.add('clash-play');
                 window.setTimeout(() => {
-                    keepSecondHalfLocked();
-                    window.addEventListener('scroll', keepSecondHalfLocked, { passive: true });
-                }, lockSecondHalfDelayMs);
-            }, clashTransitionMs);
+                    revealSecondHalf(lockSecondHalfDelayMs);
+                }, clashTransitionMs);
+                return;
+            }
+
+            body.classList.remove('clash-play');
+            revealSecondHalf(immediateLockDelayMs);
+        };
+
+        proceedButton.addEventListener('click', () => {
+            enterSecondHalf({ withClash: true });
+        });
+
+        skipIntroButton?.addEventListener('click', () => {
+            enterSecondHalf({ withClash: false });
         });
 
         if (debugReturnButton) {
             debugReturnButton.addEventListener('click', () => {
                 window.removeEventListener('scroll', keepSecondHalfLocked);
                 minSecondHalfTop = null;
+                secondHalfEntered = false;
                 body.classList.remove('clash-play');
-
-                proceedButton.disabled = false;
-                proceedButton.classList.remove('opacity-60', 'cursor-not-allowed');
+                setIntroButtonsDisabled(false);
 
                 lockInitialScroll();
                 fitIntroToViewport();
@@ -740,6 +776,53 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const leaderboardProfileModal = document.querySelector('[data-leaderboard-profile-modal]');
+    if (leaderboardProfileModal) {
+        const openButtons = document.querySelectorAll('[data-leaderboard-profile-open]');
+        const closeButton = leaderboardProfileModal.querySelector('[data-leaderboard-profile-close]');
+        const modalBody = leaderboardProfileModal.querySelector('[data-leaderboard-profile-body]');
+
+        const openLeaderboardProfileModal = (trigger) => {
+            const templateId = trigger.dataset.leaderboardProfileTemplateId;
+            const template = templateId ? document.getElementById(templateId) : null;
+            if (!template || !modalBody) {
+                return;
+            }
+
+            modalBody.innerHTML = template.innerHTML;
+            leaderboardProfileModal.classList.remove('hidden');
+            leaderboardProfileModal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+        };
+
+        const closeLeaderboardProfileModal = () => {
+            leaderboardProfileModal.classList.add('hidden');
+            leaderboardProfileModal.classList.remove('flex');
+            if (modalBody) {
+                modalBody.innerHTML = '';
+            }
+            document.body.classList.remove('overflow-hidden');
+        };
+
+        openButtons.forEach((button) => {
+            button.addEventListener('click', () => openLeaderboardProfileModal(button));
+        });
+
+        closeButton?.addEventListener('click', closeLeaderboardProfileModal);
+
+        leaderboardProfileModal.addEventListener('click', (event) => {
+            if (event.target === leaderboardProfileModal) {
+                closeLeaderboardProfileModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !leaderboardProfileModal.classList.contains('hidden')) {
+                closeLeaderboardProfileModal();
+            }
+        });
+    }
+
     const liveDetailModal = document.querySelector('[data-live-detail-modal]');
     if (liveDetailModal) {
         const openButtons = document.querySelectorAll('[data-live-detail-open]');
@@ -792,5 +875,119 @@ document.addEventListener('DOMContentLoaded', () => {
                 closeLiveDetailModal();
             }
         });
+    }
+
+    const profileEventsModal = document.querySelector('[data-profile-events-modal]');
+    if (profileEventsModal) {
+        const openButtons = document.querySelectorAll('[data-profile-events-open]');
+        const closeButtons = profileEventsModal.querySelectorAll('[data-profile-events-close]');
+
+        const openProfileEventsModal = () => {
+            profileEventsModal.classList.remove('hidden');
+            profileEventsModal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+        };
+
+        const closeProfileEventsModal = () => {
+            profileEventsModal.classList.add('hidden');
+            profileEventsModal.classList.remove('flex');
+            document.body.classList.remove('overflow-hidden');
+        };
+
+        openButtons.forEach((button) => {
+            button.addEventListener('click', openProfileEventsModal);
+        });
+
+        closeButtons.forEach((button) => {
+            button.addEventListener('click', closeProfileEventsModal);
+        });
+
+        profileEventsModal.addEventListener('click', (event) => {
+            if (event.target === profileEventsModal) {
+                closeProfileEventsModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !profileEventsModal.classList.contains('hidden')) {
+                closeProfileEventsModal();
+            }
+        });
+    }
+
+    const profileMatchModal = document.querySelector('[data-profile-match-modal]');
+    if (profileMatchModal) {
+        const openButtons = document.querySelectorAll('[data-profile-match-open]');
+        const closeButtons = profileMatchModal.querySelectorAll('[data-profile-match-close]');
+        const modalBody = profileMatchModal.querySelector('[data-profile-match-body]');
+
+        const openProfileMatchModal = (button) => {
+            const templateId = button.dataset.profileMatchTemplateId;
+            const template = templateId ? document.getElementById(templateId) : null;
+            if (!template || !modalBody) {
+                return;
+            }
+
+            modalBody.innerHTML = template.innerHTML;
+            profileMatchModal.classList.remove('hidden');
+            profileMatchModal.classList.add('flex');
+            document.body.classList.add('overflow-hidden');
+        };
+
+        const closeProfileMatchModal = () => {
+            profileMatchModal.classList.add('hidden');
+            profileMatchModal.classList.remove('flex');
+            if (modalBody) {
+                modalBody.innerHTML = '';
+            }
+            document.body.classList.remove('overflow-hidden');
+        };
+
+        openButtons.forEach((button) => {
+            button.addEventListener('click', () => openProfileMatchModal(button));
+        });
+
+        closeButtons.forEach((button) => {
+            button.addEventListener('click', closeProfileMatchModal);
+        });
+
+        profileMatchModal.addEventListener('click', (event) => {
+            if (event.target === profileMatchModal) {
+                closeProfileMatchModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !profileMatchModal.classList.contains('hidden')) {
+                closeProfileMatchModal();
+            }
+        });
+    }
+
+    const profileMatchFilter = document.querySelector('[data-profile-match-filter]');
+    const profileMatchList = document.querySelector('[data-profile-match-list]');
+    if (profileMatchFilter && profileMatchList) {
+        const matchCards = Array.from(profileMatchList.querySelectorAll('[data-profile-match-event-id]'));
+        const emptyState = profileMatchList.querySelector('[data-profile-match-filter-empty]');
+
+        const updateProfileMatchFilter = () => {
+            const selectedEventId = profileMatchFilter.value;
+            let visibleCount = 0;
+
+            matchCards.forEach((card) => {
+                const isVisible = !selectedEventId || card.dataset.profileMatchEventId === selectedEventId;
+                card.classList.toggle('hidden', !isVisible);
+                if (isVisible) {
+                    visibleCount += 1;
+                }
+            });
+
+            if (emptyState) {
+                emptyState.classList.toggle('hidden', visibleCount !== 0);
+            }
+        };
+
+        profileMatchFilter.addEventListener('change', updateProfileMatchFilter);
+        updateProfileMatchFilter();
     }
 });

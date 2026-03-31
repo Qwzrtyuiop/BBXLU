@@ -10,9 +10,14 @@ class HomeController extends Controller
 {
     public function __invoke(RankingService $rankingService, EventOverviewService $eventOverviewService): View
     {
+        $leaderboard = $rankingService->leaderboard(10);
+
         return view('home', array_merge(
             $eventOverviewService->homeData(),
-            ['leaderboard' => $rankingService->leaderboard(10)]
+            [
+                'leaderboard' => $leaderboard,
+                'leaderboardProfiles' => $rankingService->leaderboardProfilePreviews($leaderboard),
+            ]
         ));
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Player;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -139,5 +140,21 @@ class AuthAccessTest extends TestCase
         $response = $this->actingAs($user)->get(route('dashboard'));
 
         $response->assertForbidden();
+    }
+
+    public function test_user_visiting_their_public_profile_route_is_redirected_to_self_dashboard(): void
+    {
+        $user = User::factory()->create([
+            'nickname' => 'self-view-user',
+            'role' => 'user',
+            'is_claimed' => true,
+        ]);
+        $player = Player::query()->create([
+            'user_id' => $user->id,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('user.dashboard.profile', $player));
+
+        $response->assertRedirect(route('user.dashboard'));
     }
 }

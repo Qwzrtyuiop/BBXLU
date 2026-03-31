@@ -871,6 +871,9 @@
                             </thead>
                             <tbody>
                                 @forelse ($leaderboard as $row)
+                                    @php
+                                        $preview = $leaderboardProfiles->get($row->player_id);
+                                    @endphp
                                     <tr class="border-b border-slate-900 {{ ($row->is_ranked ?? false) ? '' : 'bg-slate-950/25' }}">
                                         <td class="px-3 py-2 text-amber-200">
                                             @if (($row->is_ranked ?? false) && $row->rank)
@@ -880,15 +883,32 @@
                                             @endif
                                         </td>
                                         <td class="px-3 py-2">
-                                            <div class="min-w-0">
-                                                <p class="truncate text-slate-100">{{ $row->nickname }}</p>
-                                                <p class="mt-0.5 text-[11px] text-slate-500">
-                                                    {{ ($row->is_ranked ?? false) ? 'ranked player' : 'no results yet' }}
-                                                    @if (property_exists($row, 'is_claimed') && ! $row->is_claimed)
-                                                        - auto account
-                                                    @endif
-                                                </p>
-                                            </div>
+                                            @if ($preview)
+                                                <button
+                                                    type="button"
+                                                    data-leaderboard-profile-open
+                                                    data-leaderboard-profile-template-id="dashboard-player-profile-template-{{ $row->player_id }}"
+                                                    class="group min-w-0 text-left"
+                                                >
+                                                    <p class="truncate text-slate-100 transition group-hover:text-cyan-100">{{ $row->nickname }}</p>
+                                                    <p class="mt-0.5 text-[11px] text-slate-500 transition group-hover:text-slate-300">
+                                                        {{ ($row->is_ranked ?? false) ? 'ranked player' : 'no results yet' }}
+                                                        @if (property_exists($row, 'is_claimed') && ! $row->is_claimed)
+                                                            - auto account
+                                                        @endif
+                                                    </p>
+                                                </button>
+                                            @else
+                                                <div class="min-w-0">
+                                                    <p class="truncate text-slate-100">{{ $row->nickname }}</p>
+                                                    <p class="mt-0.5 text-[11px] text-slate-500">
+                                                        {{ ($row->is_ranked ?? false) ? 'ranked player' : 'no results yet' }}
+                                                        @if (property_exists($row, 'is_claimed') && ! $row->is_claimed)
+                                                            - auto account
+                                                        @endif
+                                                    </p>
+                                                </div>
+                                            @endif
                                         </td>
                                         <td class="px-3 py-2 font-semibold text-amber-100">{{ $row->points }}</td>
                                         <td class="px-3 py-2 text-slate-300">{{ $row->events_played }}</td>
@@ -947,6 +967,35 @@
                     'registrationPanel' => 'players',
                     'showRegistrationModal' => $showPlayersRegisterModal,
                 ])
+            @endif
+
+            @if ($leaderboardProfiles->isNotEmpty())
+                @foreach ($leaderboard as $row)
+                    @php
+                        $preview = $leaderboardProfiles->get($row->player_id);
+                    @endphp
+                    @if ($preview)
+                        <template id="dashboard-player-profile-template-{{ $row->player_id }}">
+                            @include('home.partials.leaderboard-profile-modal-body', ['preview' => $preview])
+                        </template>
+                    @endif
+                @endforeach
+
+                <div data-leaderboard-profile-modal class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/75 p-4">
+                    <div class="max-h-[88vh] w-full max-w-2xl overflow-y-auto border border-cyan-400/50 bg-slate-950 p-4 shadow-[0_28px_70px_rgba(2,6,23,0.82)] sm:p-5">
+                        <div class="mb-4 flex items-center justify-between gap-3">
+                            <div>
+                                <p class="type-kicker text-xs text-cyan-300">Player Preview</p>
+                                <p class="mt-1 text-[11px] text-slate-500">Quick profile view from the leaderboard.</p>
+                            </div>
+                            <button type="button" data-leaderboard-profile-close class="inline-flex h-9 w-9 items-center justify-center border border-slate-700 text-slate-300 transition hover:border-rose-500 hover:text-rose-200">
+                                x
+                            </button>
+                        </div>
+
+                        <div data-leaderboard-profile-body></div>
+                    </div>
+                </div>
             @endif
             @endif
             </section>

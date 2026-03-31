@@ -48,13 +48,20 @@
                 </div>
             </div>
 
-            <div class="mt-5 flex justify-center">
+            <div class="mt-5 flex flex-wrap justify-center gap-2">
                 <button
                     type="button"
                     data-proceed-btn
                     class="type-label inline-flex items-center justify-center border border-cyan-300/65 bg-cyan-400/10 px-8 py-2.5 text-xs text-cyan-100 transition hover:bg-cyan-400/20"
                 >
                     Proceed
+                </button>
+                <button
+                    type="button"
+                    data-skip-intro-btn
+                    class="type-label inline-flex items-center justify-center border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-[10px] text-slate-200 transition hover:border-amber-400 hover:text-amber-200"
+                >
+                    Skip Intro
                 </button>
             </div>
 
@@ -110,14 +117,8 @@
                             <button
                                 type="button"
                                 data-event-card
-                                data-event-title="{{ $event->title }}"
-                                data-event-type="{{ $event->eventType->name }}"
-                                data-event-date="{{ $event->date->format('l, d M Y') }}"
-                                data-event-status="{{ strtoupper($event->status) }}"
-                                data-event-location="{{ $event->location ?: 'TBD' }}"
-                                data-event-created-by="{{ $event->creator->nickname }}"
-                                data-event-participants="{{ $event->participants_count }}"
-                                data-event-description="{{ $event->description ?: 'No description provided.' }}"
+                                data-event-preview-open
+                                data-event-preview-template-id="home-event-preview-template-{{ $event->id }}"
                                 class="group relative w-[min(68vw,10rem)] min-h-[280px] shrink-0 overflow-hidden bg-slate-900/80 p-4 text-left ring-1 ring-cyan-400/35 transition duration-200 hover:-translate-y-1.5 hover:ring-amber-400/70 hover:shadow-[0_10px_30px_rgba(8,145,178,0.22)] sm:w-40 sm:min-h-[300px]"
                             >
                                 <div class="flex h-full flex-col justify-between">
@@ -235,6 +236,7 @@
                 @forelse ($leaderboard as $row)
                     @php
                         $rank = (int) $row->rank;
+                        $preview = $leaderboardProfiles->get($row->player_id);
                         $tier = match ($rank) {
                             1 => 'diamond',
                             2 => 'gold',
@@ -250,23 +252,49 @@
                             'bronze' => 'flex min-h-9 items-center justify-between border border-orange-300/60 bg-[linear-gradient(90deg,rgba(251,146,60,0.16),rgba(2,6,23,0.9))] px-2 py-1.5 text-xs',
                             default => 'flex h-8 items-center justify-between border border-slate-800/75 bg-slate-950/72 px-2 py-1.5 text-xs',
                         };
+                        $interactiveRowClass = $preview
+                            ? ' group w-full cursor-pointer text-left transition duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.01] hover:border-cyan-300/75 hover:shadow-[0_12px_28px_rgba(14,165,233,0.22)] focus:outline-none focus:ring-2 focus:ring-cyan-300/45'
+                            : '';
                     @endphp
 
-                    <div class="{{ $rowClass }}">
-                        <p class="flex w-10 items-center gap-1 font-bold tracking-[0.03em] text-amber-300 [font-family:var(--font-display)]">
-                            <span class="inline-flex h-3.5 w-3.5 items-center justify-center">
-                                @if ($rank === 1)
-                                    <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5 text-amber-300" aria-hidden="true">
-                                        <path d="M3 15.5h14l-1.1-7-3.9 3.2L10 4.5 8 11.7 4.1 8.5 3 15.5Z" fill="currentColor"/>
-                                        <path d="M6.2 17h7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                                    </svg>
-                                @endif
-                            </span>
-                            <span class="tabular-nums">{{ $row->rank }}</span>
-                        </p>
-                        <p class="type-display-copy min-w-0 flex-1 truncate ml-1 pr-2 text-[13px] text-slate-100">{{ $row->nickname }}</p>
-                        <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->points }}</p>
-                    </div>
+                    @if ($preview)
+                        <button
+                            type="button"
+                            data-leaderboard-profile-open
+                            data-leaderboard-profile-template-id="leaderboard-profile-template-{{ $row->player_id }}"
+                            class="{{ $rowClass }}{{ $interactiveRowClass }}"
+                        >
+                            <p class="flex w-10 items-center gap-1 font-bold tracking-[0.03em] text-amber-300 [font-family:var(--font-display)]">
+                                <span class="inline-flex h-3.5 w-3.5 items-center justify-center">
+                                    @if ($rank === 1)
+                                        <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5 text-amber-300" aria-hidden="true">
+                                            <path d="M3 15.5h14l-1.1-7-3.9 3.2L10 4.5 8 11.7 4.1 8.5 3 15.5Z" fill="currentColor"/>
+                                            <path d="M6.2 17h7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                        </svg>
+                                    @endif
+                                </span>
+                                <span class="tabular-nums">{{ $row->rank }}</span>
+                            </p>
+                            <p class="type-display-copy min-w-0 flex-1 truncate ml-1 pr-2 text-[13px] text-slate-100 transition group-hover:text-cyan-50">{{ $row->nickname }}</p>
+                            <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->points }}</p>
+                        </button>
+                    @else
+                        <div class="{{ $rowClass }}">
+                            <p class="flex w-10 items-center gap-1 font-bold tracking-[0.03em] text-amber-300 [font-family:var(--font-display)]">
+                                <span class="inline-flex h-3.5 w-3.5 items-center justify-center">
+                                    @if ($rank === 1)
+                                        <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5 text-amber-300" aria-hidden="true">
+                                            <path d="M3 15.5h14l-1.1-7-3.9 3.2L10 4.5 8 11.7 4.1 8.5 3 15.5Z" fill="currentColor"/>
+                                            <path d="M6.2 17h7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                                        </svg>
+                                    @endif
+                                </span>
+                                <span class="tabular-nums">{{ $row->rank }}</span>
+                            </p>
+                            <p class="type-display-copy min-w-0 flex-1 truncate ml-1 pr-2 text-[13px] text-slate-100">{{ $row->nickname }}</p>
+                            <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->points }}</p>
+                        </div>
+                    @endif
                 @empty
                     <p class="type-body text-sm text-slate-400">No ranking data available.</p>
                 @endforelse
@@ -419,11 +447,11 @@
         </article>
     </section>
 
-    <section id="register" class="scroll-mt-24 bg-slate-900/80 p-6 ring-1 ring-amber-400/35">
+    <section class="bg-slate-900/80 p-6 ring-1 ring-amber-400/35">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <p class="type-kicker text-xs text-amber-300">Register</p>
-                <p class="type-body mt-2 text-sm text-slate-300">Want to compete in upcoming events? Contact the admin to create or claim your player account.</p>
+                <p class="type-body mt-2 text-sm text-slate-300">Want to compete in upcoming events? Sign in to continue.</p>
             </div>
             <a href="{{ route('login') }}" class="type-label w-full rounded-none border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-200 hover:bg-amber-500/20 sm:w-auto">
                 Go To Login
@@ -434,11 +462,11 @@
     </div>
 
     <div data-event-modal class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4">
-        <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-cyan-400/60 bg-slate-950 p-4 sm:p-5">
+        <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-cyan-400/60 bg-slate-950 p-4 shadow-[0_24px_60px_rgba(2,6,23,0.72)] sm:p-5">
             <div class="mb-4 flex items-start justify-between gap-3">
                 <div>
-                    <p class="type-kicker text-xs text-cyan-300" data-event-modal-type></p>
-                    <h3 class="type-headline mt-1 text-xl text-white sm:text-2xl" data-event-modal-title></h3>
+                    <p class="type-kicker text-xs text-cyan-300">Event Preview</p>
+                    <h3 class="type-headline mt-1 text-xl text-white sm:text-2xl">Event Details</h3>
                 </div>
                 <button type="button" data-event-modal-close class="inline-flex h-9 w-9 items-center justify-center border border-slate-700 text-slate-300 transition hover:border-rose-500 hover:text-rose-200">
                     <span class="sr-only">Close</span>
@@ -446,34 +474,41 @@
                 </button>
             </div>
 
-            <div class="grid gap-3 sm:grid-cols-2">
-                <div class="border border-slate-800 bg-slate-900/70 p-3">
-                    <p class="type-label text-xs text-slate-500">Date</p>
-                    <p class="type-body-strong mt-1 text-sm text-slate-100" data-event-modal-date></p>
+            <div data-event-modal-body></div>
+        </div>
+    </div>
+
+    @foreach ($events as $event)
+        <template id="home-event-preview-template-{{ $event->id }}">
+            @include('home.partials.event-card-modal-body', ['event' => $event])
+        </template>
+    @endforeach
+
+    @foreach ($leaderboard as $row)
+        @php
+            $preview = $leaderboardProfiles->get($row->player_id);
+        @endphp
+        @if ($preview)
+            <template id="leaderboard-profile-template-{{ $row->player_id }}">
+                @include('home.partials.leaderboard-profile-modal-body', ['preview' => $preview])
+            </template>
+        @endif
+    @endforeach
+
+    <div data-leaderboard-profile-modal class="fixed inset-0 z-[60] hidden items-center justify-center bg-black/75 p-4">
+        <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto border border-cyan-400/60 bg-slate-950 p-4 shadow-[0_24px_60px_rgba(2,6,23,0.72)] sm:p-5">
+            <div class="mb-4 flex items-start justify-between gap-3">
+                <div>
+                    <p class="type-kicker text-xs text-cyan-300">Top Bladers</p>
+                    <h3 class="type-headline mt-1 text-xl text-white sm:text-2xl">Player Preview</h3>
                 </div>
-                <div class="border border-slate-800 bg-slate-900/70 p-3">
-                    <p class="type-label text-xs text-slate-500">Status</p>
-                    <p class="type-body-strong mt-1 text-sm text-slate-100" data-event-modal-status></p>
-                </div>
-                <div class="border border-slate-800 bg-slate-900/70 p-3">
-                    <p class="type-label text-xs text-slate-500">Location</p>
-                    <p class="type-body-strong mt-1 text-sm text-slate-100" data-event-modal-location></p>
-                </div>
-                <div class="border border-slate-800 bg-slate-900/70 p-3">
-                    <p class="type-label text-xs text-slate-500">Participants</p>
-                    <p class="type-body-strong mt-1 text-sm text-slate-100" data-event-modal-participants></p>
-                </div>
+                <button type="button" data-leaderboard-profile-close class="inline-flex h-9 w-9 items-center justify-center border border-slate-700 text-slate-300 transition hover:border-rose-500 hover:text-rose-200">
+                    <span class="sr-only">Close</span>
+                    <span class="text-lg leading-none">x</span>
+                </button>
             </div>
 
-            <div class="mt-3 border border-slate-800 bg-slate-900/70 p-3">
-                <p class="type-label text-xs text-slate-500">Created By</p>
-                <p class="type-body-strong mt-1 text-sm text-slate-100" data-event-modal-created-by></p>
-            </div>
-
-            <div class="mt-3 border border-slate-800 bg-slate-900/70 p-3">
-                <p class="type-label text-xs text-slate-500">Description</p>
-                <p class="type-body mt-1 text-sm text-slate-200" data-event-modal-description></p>
-            </div>
+            <div data-leaderboard-profile-body></div>
         </div>
     </div>
 </x-layouts.public>

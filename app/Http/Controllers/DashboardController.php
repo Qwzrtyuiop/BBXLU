@@ -23,6 +23,7 @@ class DashboardController extends Controller
 
         $dashboardData = $eventOverviewService->dashboardData($selectedEventId, $activePanel);
         $leaderboard = collect();
+        $leaderboardProfiles = collect();
         $players = collect();
         $playersWithoutResults = collect();
         $registerableUsers = collect();
@@ -43,6 +44,7 @@ class DashboardController extends Controller
 
         if ($activePanel === 'players') {
             $leaderboard = $rankingService->leaderboardWithAllPlayers();
+            $leaderboardProfiles = $rankingService->leaderboardProfilePreviews($leaderboard);
             $playersWithoutResults = $rankingService->playersWithoutResults();
             $playerRegistrationEvent = Event::query()
                 ->with('eventType')
@@ -60,6 +62,7 @@ class DashboardController extends Controller
             [
                 'activePanel' => $activePanel,
                 'leaderboard' => $leaderboard,
+                'leaderboardProfiles' => $leaderboardProfiles,
                 'players' => $players,
                 'playersWithoutResults' => $playersWithoutResults,
                 'registerableUsers' => $registerableUsers,

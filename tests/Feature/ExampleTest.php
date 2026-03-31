@@ -36,6 +36,14 @@ class ExampleTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_public_players_page_is_accessible(): void
+    {
+        $response = $this->get(route('players.index'));
+
+        $response->assertOk();
+        $response->assertSee('Players');
+    }
+
     public function test_public_live_event_page_is_accessible_by_event_id(): void
     {
         $event = $this->createPublicEvent('Viewer Finals', 'finished');
@@ -93,6 +101,24 @@ class ExampleTest extends TestCase
         $response->assertSee('Match #'.$match->id);
         $response->assertSee('viewer-alpha');
         $response->assertSee('viewer-beta');
+    }
+
+    public function test_public_player_profile_page_is_accessible_by_player_id(): void
+    {
+        $user = User::factory()->create([
+            'nickname' => 'public-player',
+            'name' => 'Public Player',
+            'role' => 'user',
+            'is_claimed' => true,
+        ]);
+        $player = Player::query()->create([
+            'user_id' => $user->id,
+        ]);
+
+        $response = $this->get(route('user.dashboard.profile', $player));
+
+        $response->assertOk();
+        $response->assertSee('public-player');
     }
 
     private function createPublicEvent(string $title, string $status): Event
