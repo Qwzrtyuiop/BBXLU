@@ -112,6 +112,10 @@ class UserDashboardController extends Controller
             'avg_score' => null,
             'avg_against' => null,
             'byes' => 0,
+            'x_side_win_rate' => null,
+            'b_side_win_rate' => null,
+            'x_side_record' => '0-0',
+            'b_side_record' => '0-0',
             'most_used_bey' => null,
             'most_used_bey_count' => 0,
             'best_finish' => null,
@@ -167,7 +171,15 @@ class UserDashboardController extends Controller
         return EventMatch::query()
             ->select('matches.*')
             ->join('events', 'events.id', '=', 'matches.event_id')
-            ->with(['event.eventType', 'round.matches', 'player1.user', 'player2.user', 'winner.user'])
+            ->with([
+                'event.eventType',
+                'round.matches',
+                'player1.user',
+                'player2.user',
+                'winner.user',
+                'player1StadiumSide',
+                'player2StadiumSide',
+            ])
             ->where(function ($query) use ($player): void {
                 $query->where('matches.player1_id', $player->id)
                     ->orWhere('matches.player2_id', $player->id);
@@ -218,6 +230,10 @@ class UserDashboardController extends Controller
             'over' => 0,
             'extreme' => 0,
         ]);
+        $sideRecords = [
+            'X' => ['wins' => 0, 'losses' => 0],
+            'B' => ['wins' => 0, 'losses' => 0],
+        ];
 
         foreach ($completedCompetitiveMatches as $match) {
             $playerSlot = $match->player1_id === $player->id
@@ -239,6 +255,18 @@ class UserDashboardController extends Controller
                 }
 
                 $finishTypeCounts->put($type, ((int) $finishTypeCounts->get($type, 0)) + 1);
+            }
+
+            $sideCode = $match->stadiumSideCodeForPlayer($player->id);
+
+            if (! in_array($sideCode, ['X', 'B'], true)) {
+                continue;
+            }
+
+            if ($match->winner_id === $player->id) {
+                $sideRecords[$sideCode]['wins']++;
+            } elseif ($match->winner_id) {
+                $sideRecords[$sideCode]['losses']++;
             }
         }
 
@@ -274,6 +302,14 @@ class UserDashboardController extends Controller
         $stats['avg_score'] = $averageScore !== null ? round($averageScore, 1) : null;
         $stats['avg_against'] = $averageAgainst !== null ? round($averageAgainst, 1) : null;
         $stats['byes'] = $recentMatches->filter(fn (EventMatch $match) => $match->is_bye && $match->winner_id === $player->id)->count();
+        $stats['x_side_record'] = $sideRecords['X']['wins'].'-'.$sideRecords['X']['losses'];
+        $stats['b_side_record'] = $sideRecords['B']['wins'].'-'.$sideRecords['B']['losses'];
+        $stats['x_side_win_rate'] = array_sum($sideRecords['X']) > 0
+            ? round(($sideRecords['X']['wins'] / array_sum($sideRecords['X'])) * 100, 1)
+            : null;
+        $stats['b_side_win_rate'] = array_sum($sideRecords['B']) > 0
+            ? round(($sideRecords['B']['wins'] / array_sum($sideRecords['B'])) * 100, 1)
+            : null;
         $stats['most_used_bey'] = $mostUsedBey;
         $stats['most_used_bey_count'] = $mostUsedBey ? (int) $beyUsage->get($mostUsedBey) : 0;
         $stats['best_finish'] = $finishTypeCounts->sortDesc()->keys()->first(fn (string $type) => $finishTypeCounts->get($type) > 0);

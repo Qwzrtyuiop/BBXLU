@@ -316,15 +316,22 @@ class BracketService
                 }
 
                 $pairings = $this->buildIncrementalSingleEliminationPairings($sourceMatches);
+                $nextRoundNumber = $roundNumber + 1;
+                /** @var EventRound|null $nextRound */
+                $nextRound = $roundsByNumber->get($nextRoundNumber);
 
                 if ($pairings->isEmpty()) {
+                    if ($sourceMatches->count() === 2 && $this->canRemovePendingIncrementalRound($nextRound)) {
+                        $nextRound->matches()->delete();
+                        $nextRound->delete();
+                        $roundsByNumber->forget($nextRoundNumber);
+                        $updatedMatchCount++;
+                    }
+
                     continue;
                 }
 
-                $nextRoundNumber = $roundNumber + 1;
                 $nextRoundLabel = $this->singleEliminationRoundLabel($event, $nextRoundNumber, $sourceMatches->count(), $pairings->count());
-                /** @var EventRound|null $nextRound */
-                $nextRound = $roundsByNumber->get($nextRoundNumber);
 
                 if (! $nextRound) {
                     $nextRound = EventRound::query()->create([
@@ -844,18 +851,22 @@ class BracketService
             $firstLoser = $this->resolvedMatchLoser($first);
             $secondLoser = $this->resolvedMatchLoser($second);
 
+            if (! $firstWinner || ! $secondWinner || ! $firstLoser || ! $secondLoser) {
+                return collect();
+            }
+
             return collect([
                 [
-                    'player1' => $firstWinner ?? $secondWinner,
-                    'player2' => $firstWinner && $secondWinner ? $secondWinner : null,
+                    'player1' => $firstWinner,
+                    'player2' => $secondWinner,
                     'is_bye' => false,
                     'source_match1_id' => $first?->id,
                     'source_match2_id' => $second?->id,
                     'placement_type' => 'championship',
                 ],
                 [
-                    'player1' => $firstLoser ?? $secondLoser,
-                    'player2' => $firstLoser && $secondLoser ? $secondLoser : null,
+                    'player1' => $firstLoser,
+                    'player2' => $secondLoser,
                     'is_bye' => false,
                     'source_match1_id' => $first?->id,
                     'source_match2_id' => $second?->id,
@@ -1326,6 +1337,21 @@ class BracketService
         $loserId = $match ? $this->matchLoserId($match) : null;
 
         return $loserId ? Player::query()->find($loserId) : null;
+    }
+
+    private function canRemovePendingIncrementalRound(?EventRound $round): bool
+    {
+        if (! $round) {
+            return false;
+        }
+
+        $round->loadMissing('matches');
+
+        if ($round->matches->isEmpty()) {
+            return true;
+        }
+
+        return $round->matches->every(fn (EventMatch $match) => $match->status === 'pending' && ! $match->winner_id && ! $match->is_bye);
     }
 
     private function nextSingleEliminationBracketSize(int $playerCount): int

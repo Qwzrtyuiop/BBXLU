@@ -27,7 +27,9 @@ class EventMatch extends Model
         'event_round_id',
         'stage',
         'player1_id',
+        'player1_stadium_side_id',
         'player2_id',
+        'player2_stadium_side_id',
         'player1_score',
         'player2_score',
         'winner_id',
@@ -100,6 +102,16 @@ class EventMatch extends Model
         return $this->belongsTo(Player::class, 'player2_id')->withDefault();
     }
 
+    public function player1StadiumSide(): BelongsTo
+    {
+        return $this->belongsTo(StadiumSide::class, 'player1_stadium_side_id');
+    }
+
+    public function player2StadiumSide(): BelongsTo
+    {
+        return $this->belongsTo(StadiumSide::class, 'player2_stadium_side_id');
+    }
+
     public function winner(): BelongsTo
     {
         return $this->belongsTo(Player::class, 'winner_id')->withDefault();
@@ -146,6 +158,19 @@ class EventMatch extends Model
     public static function finishTypePoints(?string $finishType): int
     {
         return self::FINISH_TYPE_POINTS[$finishType] ?? 1;
+    }
+
+    public function stadiumSideCodeForPlayer(int $playerId): ?string
+    {
+        if ($this->player1_id === $playerId) {
+            return $this->player1StadiumSide?->code;
+        }
+
+        if ($this->player2_id === $playerId) {
+            return $this->player2StadiumSide?->code;
+        }
+
+        return null;
     }
 
     public function weightedBattlePointsForPlayer(int $playerId): int

@@ -10,6 +10,7 @@ use App\Models\EventRound;
 use App\Models\EventResult;
 use App\Models\EventType;
 use App\Models\Player;
+use App\Models\StadiumSide;
 use App\Models\User;
 use App\Services\BracketService;
 use Illuminate\Database\QueryException;
@@ -428,6 +429,8 @@ class EventController extends Controller
             'player2_bey1' => ['nullable', 'string', 'max:255'],
             'player2_bey2' => ['nullable', 'string', 'max:255'],
             'player2_bey3' => ['nullable', 'string', 'max:255'],
+            'player1_stadium_side' => ['nullable', 'in:X,B,Other'],
+            'player2_stadium_side' => ['nullable', 'in:X,B,Other'],
         ];
 
         foreach (range(1, EventMatch::MAX_BATTLE_SLOTS) as $slot) {
@@ -527,6 +530,8 @@ class EventController extends Controller
             'player2_bey2' => $resolvedBeys['player2_bey2'],
             'player2_bey3' => $resolvedBeys['player2_bey3'],
         ];
+
+        $matchPayload = array_merge($matchPayload, $this->resolvedMatchStadiumSides($data, $summary['player2_id']));
 
         foreach (range(1, EventMatch::MAX_BATTLE_SLOTS) as $slot) {
             $resultIndex = $slot - 1;
@@ -813,6 +818,44 @@ class EventController extends Controller
             'is_bye' => false,
             'results' => $scoredResult['results'],
         ];
+    }
+
+    private function resolvedMatchStadiumSides(array $data, ?int $player2Id): array
+    {
+        $player1Side = $this->normalizeStadiumSideCode($data['player1_stadium_side'] ?? null);
+        $player2Side = $this->normalizeStadiumSideCode($data['player2_stadium_side'] ?? null);
+
+        if ($player1Side === 'X' || $player1Side === 'B') {
+            $player2Side = $player1Side === 'X' ? 'B' : 'X';
+        } elseif ($player2Side === 'X' || $player2Side === 'B') {
+            $player1Side = $player2Side === 'X' ? 'B' : 'X';
+        }
+
+        if (! $player2Id) {
+            $player2Side = null;
+        }
+
+        $sideIds = StadiumSide::query()
+            ->whereIn('code', array_filter([$player1Side, $player2Side]))
+            ->pluck('id', 'code');
+
+        return [
+            'player1_stadium_side_id' => $player1Side ? $sideIds->get($player1Side) : null,
+            'player2_stadium_side_id' => $player2Side ? $sideIds->get($player2Side) : null,
+        ];
+    }
+
+    private function normalizeStadiumSideCode(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $normalized = trim($value);
+
+        return in_array($normalized, ['X', 'B', 'Other'], true)
+            ? $normalized
+            : null;
     }
 
     private function scoredMatchResultSummary(array $results, array $resultTypes, int $threshold, int $matchFormat): array

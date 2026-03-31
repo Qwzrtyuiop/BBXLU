@@ -426,16 +426,16 @@
         data-open-subtitle="{{ $workspaceMatchErrorSubtitle }}"
         class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4"
     >
-        <div class="max-h-[90vh] w-full max-w-6xl overflow-y-auto border border-cyan-400/60 bg-slate-950 p-4 sm:p-5">
-            <div class="mb-4 flex items-start justify-between gap-3">
+        <div class="flex max-h-[94vh] w-full max-w-[96vw] flex-col overflow-hidden rounded-2xl border border-cyan-400/60 bg-slate-950 shadow-[0_26px_80px_rgba(2,8,23,0.75)]">
+            <div class="flex items-start justify-between gap-3 border-b border-slate-800/90 px-4 py-3 sm:px-5">
                 <div>
                     <p class="type-kicker text-xs text-cyan-300" data-workspace-match-modal-subtitle></p>
                     <h3 class="type-headline mt-1 text-xl text-white sm:text-2xl" data-workspace-match-modal-title></h3>
                 </div>
-                <button type="button" data-workspace-match-close class="type-label border border-slate-700 px-3 py-1.5 text-[10px] text-slate-100 transition hover:border-rose-500 hover:text-rose-200">Close</button>
+                <button type="button" data-workspace-match-close class="type-label rounded-xl border border-slate-700 px-3 py-1.5 text-[10px] text-slate-100 transition hover:border-rose-500 hover:text-rose-200">Close</button>
             </div>
 
-            <div data-workspace-match-modal-body></div>
+            <div class="overflow-y-auto px-4 py-3 sm:px-5 sm:py-4" data-workspace-match-modal-body></div>
         </div>
     </div>
 </article>

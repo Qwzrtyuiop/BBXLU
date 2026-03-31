@@ -174,7 +174,7 @@
             $formValue = fn (string $key, mixed $default = null) => $isReopenedMatch ? old($key, $default) : $default;
             $matchErrorMessages = $isReopenedMatch
                 ? collect(array_merge(
-                    ['match_scores', 'match_deck', 'match_players', 'player2_id'],
+                    ['match_scores', 'match_deck', 'match_players', 'player2_id', 'player1_stadium_side', 'player2_stadium_side'],
                     collect(range(1, $battleSlotCount))->flatMap(fn (int $slot) => [
                         "result_{$slot}",
                         "result_type_{$slot}",
@@ -186,34 +186,78 @@
                     ->unique()
                     ->values()
                 : collect();
+            $player1SelectedSide = $formValue('player1_stadium_side', $match->player1StadiumSide?->code);
+            $player2SelectedSide = $formValue('player2_stadium_side', $match->player2StadiumSide?->code);
+            $matchStatusLabel = $match->is_bye ? 'Auto Bye' : ucfirst(str_replace('_', ' ', $match->status));
+            $summaryToneClasses = $match->is_bye
+                ? 'border-emerald-400/30 bg-emerald-400/[0.06] text-emerald-100'
+                : ($match->status === 'completed'
+                    ? 'border-cyan-400/30 bg-cyan-400/[0.06] text-cyan-100'
+                    : ($hasPlaceholderOpponent
+                        ? 'border-slate-700/90 bg-slate-900/70 text-slate-200'
+                        : 'border-amber-400/30 bg-amber-400/[0.06] text-amber-100'));
+            $playerSetupCards = [
+                [
+                    'slot' => 1,
+                    'title' => $player1Name,
+                    'participant' => $player1Participant,
+                    'selectedSide' => $player1SelectedSide,
+                    'storedDeck' => [$match->player1_bey1, $match->player1_bey2, $match->player1_bey3],
+                ],
+                [
+                    'slot' => 2,
+                    'title' => $player2Name,
+                    'participant' => $player2Participant,
+                    'selectedSide' => $player2SelectedSide,
+                    'storedDeck' => [$match->player2_bey1, $match->player2_bey2, $match->player2_bey3],
+                ],
+            ];
         @endphp
         <article class="space-y-4">
-            <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                    <p class="font-medium text-slate-100">
-                        {{ $player1Name }}
-                        @if ($match->player2_id)
-                            vs {{ $player2Name }}
-                        @elseif ($match->is_bye)
-                            vs BYE
-                        @else
-                            vs - opponent
+            <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+                <div class="rounded-2xl border border-cyan-500/30 bg-slate-950/75 p-3.5">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] {{ $summaryToneClasses }}">
+                            {{ $matchStatusLabel }}
+                        </span>
+                        @if (! $match->is_bye && ! $hasPlaceholderOpponent)
+                            <span class="rounded-full border border-slate-700/80 bg-slate-900/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                                First To {{ $matchWinThreshold }}
+                            </span>
                         @endif
-                    </p>
-                    <p class="mt-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                        {{ $match->status }}
-                        @if ($match->is_bye)
-                            - auto bye
+                        @if ($match->stage === 'single_elim')
+                            <span class="rounded-full border border-slate-700/80 bg-slate-900/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-300">
+                                Top Cut
+                            </span>
                         @endif
-                    </p>
+                    </div>
+
+                    <div class="mt-3 grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
+                        <div class="rounded-xl border border-slate-800/85 bg-slate-900/70 px-3 py-2.5">
+                            <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">P1</p>
+                            <p class="mt-1 truncate text-base font-semibold text-slate-50">{{ $player1Name }}</p>
+                        </div>
+                        <div class="flex items-center justify-center text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                            VS
+                        </div>
+                        <div class="rounded-xl border border-slate-800/85 bg-slate-900/70 px-3 py-2.5">
+                            <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">P2</p>
+                            <p class="mt-1 truncate text-base font-semibold text-slate-50">{{ $player2Name }}</p>
+                        </div>
+                    </div>
+
+                    @if (! $match->is_bye && $match->status !== 'completed' && ! $hasPlaceholderOpponent)
+                        <p class="mt-2.5 text-[10px] text-slate-400">Set side, confirm Bey picks, then record battles until one player reaches {{ $matchWinThreshold }} points.</p>
+                    @endif
                 </div>
-                <form action="{{ route('events.matches.destroy', [$selectedEvent, $match]) }}" method="POST" onsubmit="return confirm('Delete this match?');">
+
+                <form action="{{ route('events.matches.destroy', [$selectedEvent, $match]) }}" method="POST" onsubmit="return confirm('Delete this match?');" class="xl:pt-1">
                     @csrf
                     @method('DELETE')
                     <input type="hidden" name="dashboard_redirect" value="1">
                     <input type="hidden" name="dashboard_panel" value="workspace">
                     <input type="hidden" name="dashboard_event_id" value="{{ $selectedEvent->id }}">
-                    <button class="border border-rose-500/60 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-rose-200 transition hover:bg-rose-500/10">Delete</button>
+                    <button class="w-full rounded-xl border border-rose-500/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-rose-200 transition hover:bg-rose-500/10 xl:w-auto">Delete Match</button>
                 </form>
             </div>
 
@@ -288,55 +332,115 @@
                         </div>
                     @endif
 
-                    @if ($usesRegisteredDecks)
-                        <div class="grid gap-3 xl:grid-cols-2">
-                            @foreach ([
-                                ['label' => $player1Name, 'participant' => $player1Participant],
-                                ['label' => $player2Name, 'participant' => $player2Participant],
-                            ] as $deckInfo)
-                                <div class="border border-slate-800 bg-slate-900/60 px-3 py-2">
-                                    <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">{{ $deckInfo['label'] }} Registered Deck</p>
-                                    <p class="mt-1 text-sm text-slate-300">{{ $deckInfo['participant'] ? implode(', ', $deckInfo['participant']->registeredBeys()) : 'No deck registered yet.' }}</p>
-                                </div>
-                            @endforeach
-                        </div>
-                    @else
-                        <div class="grid gap-3 xl:grid-cols-2">
-                            @foreach ([1 => $player1Name, 2 => $player2Name] as $slot => $label)
-                                <div class="grid gap-2">
-                                    <p class="text-sm font-semibold text-slate-100">{{ $label }} Bey Picks</p>
-                                    @foreach ([1, 2, 3] as $beySlot)
-                                        <label class="grid gap-1">
-                                            <span class="text-[11px] uppercase tracking-[0.14em] text-slate-500">Bey {{ $beySlot }}</span>
-                                            <input
-                                                name="player{{ $slot }}_bey{{ $beySlot }}"
-                                                value="{{ $formValue('player'.$slot.'_bey'.$beySlot, $match->{'player'.$slot.'_bey'.$beySlot}) }}"
-                                                class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none"
-                                            >
-                                        </label>
-                                    @endforeach
-                                </div>
-                            @endforeach
-                        </div>
-                    @endif
+                    <div class="grid gap-3.5 xl:grid-cols-[minmax(14.5rem,0.72fr)_minmax(0,1.58fr)] xl:items-start">
+                        <section class="grid gap-2.5" data-stadium-side-control>
+                            @foreach ($playerSetupCards as $setupCard)
+                                @php
+                                    $selectedSide = in_array($setupCard['selectedSide'], ['X', 'B'], true) ? $setupCard['selectedSide'] : null;
+                                    $registeredBeys = $setupCard['participant'] ? array_values(array_filter($setupCard['participant']->registeredBeys())) : [];
+                                @endphp
+                                <div class="rounded-2xl border border-slate-800/85 bg-slate-950/70 p-3">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Player {{ $setupCard['slot'] }}</p>
+                                            <h4 class="mt-1 truncate text-[13px] font-semibold text-slate-50">{{ $setupCard['title'] }}</h4>
+                                        </div>
+                                        @if ($usesRegisteredDecks)
+                                            <span class="rounded-full border border-cyan-500/35 bg-cyan-500/[0.06] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.14em] text-cyan-200">Registered</span>
+                                        @endif
+                                    </div>
 
-                    <div>
-                        <p class="text-sm font-semibold text-slate-100">Battle Results</p>
-                        <p class="mt-1 text-xs text-slate-500">First to {{ $matchWinThreshold }} points. Spin = 1, Burst = 2, Over = 2, Extreme = 3.</p>
-                        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                            @foreach (range(1, $battleSlotCount) as $slot)
-                                @include('partials.battle-result-picker', [
-                                    'slot' => $slot,
-                                    'player1Name' => $player1Name,
-                                    'player2Name' => $player2Name,
-                                    'selectedWinner' => $formValue('result_'.$slot, $match->{'result_'.$slot}),
-                                    'selectedType' => $formValue('result_type_'.$slot, $match->{'result_type_'.$slot}),
-                                ])
+                                    @if ($usesRegisteredDecks)
+                                        <div class="mt-2.5">
+                                            <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Bey Picks</p>
+                                            <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                                @forelse ($registeredBeys as $bey)
+                                                    <span class="rounded-full border border-slate-700/80 bg-slate-900/75 px-2 py-0.5 text-[10px] text-slate-200">{{ $bey }}</span>
+                                                @empty
+                                                    <span class="text-[11px] text-slate-500">No deck registered yet.</span>
+                                                @endforelse
+                                            </div>
+                                        </div>
+                                    @else
+                                        <div class="mt-2 grid gap-1">
+                                            <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Bey Picks</p>
+                                            <div class="grid grid-cols-3 gap-1.5">
+                                                @foreach ([1, 2, 3] as $beySlot)
+                                                    <label class="grid gap-1">
+                                                        <span class="text-[9px] uppercase tracking-[0.14em] text-slate-500">B{{ $beySlot }}</span>
+                                                        <input
+                                                            name="player{{ $setupCard['slot'] }}_bey{{ $beySlot }}"
+                                                            value="{{ $formValue('player'.$setupCard['slot'].'_bey'.$beySlot, $setupCard['storedDeck'][$beySlot - 1]) }}"
+                                                            placeholder="Pick"
+                                                            class="rounded-lg border border-slate-700/80 bg-slate-950/80 px-2 py-1.5 text-[12px] text-slate-100 placeholder:text-slate-600 focus:border-amber-500 focus:outline-none"
+                                                        >
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    <div class="mt-2.5 grid gap-1.5" data-stadium-side-group data-player-slot="{{ $setupCard['slot'] }}">
+                                        <div class="flex items-center justify-between gap-2">
+                                            <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Stadium Side</span>
+                                            <span class="text-[10px] uppercase tracking-[0.14em] text-slate-600">Auto-opposite</span>
+                                        </div>
+                                        <input type="hidden" name="player{{ $setupCard['slot'] }}_stadium_side" value="{{ $selectedSide ?? '' }}" data-stadium-side-input>
+                                        <div class="grid grid-cols-2 gap-1.5">
+                                            @foreach (['X', 'B'] as $sideCode)
+                                                @php
+                                                    $isSelected = $selectedSide === $sideCode;
+                                                @endphp
+                                                <button
+                                                    type="button"
+                                                    data-stadium-side-choice
+                                                    data-side-choice="{{ $sideCode }}"
+                                                    class="rounded-xl border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] transition {{ $isSelected ? 'border-cyan-400/70 bg-cyan-400/10 text-cyan-100' : 'border-slate-700/80 bg-slate-950/70 text-slate-300 hover:border-cyan-400/45 hover:text-cyan-100' }}"
+                                                >
+                                                    {{ $sideCode }}
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                </div>
                             @endforeach
-                        </div>
+                        </section>
+
+                        <section class="rounded-2xl border border-slate-800/85 bg-slate-950/70 p-3">
+                            <div class="flex flex-wrap items-end justify-between gap-3">
+                                <div>
+                                    <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Battle Results</p>
+                                    <p class="mt-1 text-[10px] text-slate-400">First to {{ $matchWinThreshold }}. Spin = 1, Over = 2, Burst = 2, Extreme = 3.</p>
+                                </div>
+                                <div class="grid gap-1 rounded-xl border border-slate-800/85 bg-slate-900/70 px-2.5 py-1.5 text-[9px] text-slate-300 sm:grid-cols-2 sm:gap-2.5">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-cyan-500/35 bg-cyan-500/[0.08] px-1 text-[8px] font-semibold text-cyan-200">P1</span>
+                                        <span class="truncate">{{ $player1Name }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-slate-700/85 bg-slate-950/80 px-1 text-[8px] font-semibold text-slate-200">P2</span>
+                                        <span class="truncate">{{ $player2Name }}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-2.5 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+                                @foreach (range(1, $battleSlotCount) as $slot)
+                                    @include('partials.battle-result-picker', [
+                                        'slot' => $slot,
+                                        'player1Name' => $player1Name,
+                                        'player2Name' => $player2Name,
+                                        'selectedWinner' => $formValue('result_'.$slot, $match->{'result_'.$slot}),
+                                        'selectedType' => $formValue('result_type_'.$slot, $match->{'result_type_'.$slot}),
+                                    ])
+                                @endforeach
+                            </div>
+
+                            <div class="mt-3 flex justify-end">
+                                <button class="rounded-xl border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-100 transition hover:bg-amber-500/20">Save Match Result</button>
+                            </div>
+                        </section>
                     </div>
-
-                    <button class="border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-100 transition hover:bg-amber-500/20">Save Match Result</button>
                 </form>
             @endif
         </article>

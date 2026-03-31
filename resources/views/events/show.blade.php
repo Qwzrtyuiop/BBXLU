@@ -224,6 +224,8 @@
                                             @php
                                                 $matchWinThreshold = $event->battleWinThresholdForMatch($match, $round, $round->stage, $round->matches->count());
                                                 $battleSlotCount = $event->maxBattleSlotsForThreshold($matchWinThreshold);
+                                                $player1SelectedSide = in_array($match->player1StadiumSide?->code, ['X', 'B'], true) ? $match->player1StadiumSide?->code : null;
+                                                $player2SelectedSide = in_array($match->player2StadiumSide?->code, ['X', 'B'], true) ? $match->player2StadiumSide?->code : null;
                                             @endphp
                                             <form action="{{ route('events.matches.store', $event) }}" method="POST" class="mt-4 grid gap-4">
                                                 @csrf
@@ -262,6 +264,33 @@
                                                             </label>
                                                         @endforeach
                                                     </div>
+                                                </div>
+
+                                                <div class="grid gap-3 sm:grid-cols-2" data-stadium-side-control>
+                                                    @foreach ([1 => ['label' => $match->player1->user->nickname, 'selected' => $player1SelectedSide], 2 => ['label' => $match->player2?->user->nickname, 'selected' => $player2SelectedSide]] as $slot => $sideInfo)
+                                                        <div class="grid gap-1.5" data-stadium-side-group data-player-slot="{{ $slot }}">
+                                                            <div class="flex items-center justify-between gap-2">
+                                                                <span class="text-xs uppercase tracking-[0.14em] text-slate-500">{{ $sideInfo['label'] }} Side</span>
+                                                                <span class="text-[10px] uppercase tracking-[0.14em] text-slate-600">Auto-opposite</span>
+                                                            </div>
+                                                            <input type="hidden" name="player{{ $slot }}_stadium_side" value="{{ $sideInfo['selected'] ?? '' }}" data-stadium-side-input>
+                                                            <div class="grid grid-cols-2 gap-2">
+                                                                @foreach (['X', 'B'] as $sideCode)
+                                                                    @php
+                                                                        $isSelected = $sideInfo['selected'] === $sideCode;
+                                                                    @endphp
+                                                                    <button
+                                                                        type="button"
+                                                                        data-stadium-side-choice
+                                                                        data-side-choice="{{ $sideCode }}"
+                                                                        class="rounded-lg border px-3 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition {{ $isSelected ? 'border-cyan-400/70 bg-cyan-400/10 text-cyan-100' : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:border-cyan-400/45 hover:text-cyan-100' }}"
+                                                                    >
+                                                                        {{ $sideCode }}
+                                                                    </button>
+                                                                @endforeach
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
                                                 </div>
 
                                                 <div>

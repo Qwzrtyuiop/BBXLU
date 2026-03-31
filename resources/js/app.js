@@ -201,8 +201,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const updateBattlePickerSelection = (picker, selectedChoice) => {
+        let selectedButton = null;
+
         picker.querySelectorAll('[data-battle-choice]').forEach((button) => {
             const isSelected = button.dataset.choice === selectedChoice;
+            if (isSelected) {
+                selectedButton = button;
+            }
             button.classList.toggle('border-amber-400/70', isSelected);
             button.classList.toggle('bg-amber-400/12', isSelected);
             button.classList.toggle('text-amber-100', isSelected);
@@ -212,6 +217,16 @@ document.addEventListener('DOMContentLoaded', () => {
             button.classList.toggle('bg-slate-950/75', !isSelected);
             button.classList.toggle('text-slate-300', !isSelected);
         });
+
+        const summary = picker.querySelector('[data-battle-summary]');
+        if (!summary) {
+            return;
+        }
+
+        summary.textContent = selectedButton?.dataset.choiceSummary || summary.dataset.defaultSummary || '';
+        summary.classList.toggle('text-amber-200', Boolean(selectedButton));
+        summary.classList.toggle('font-semibold', Boolean(selectedButton));
+        summary.classList.toggle('text-slate-400', !selectedButton);
     };
 
     document.addEventListener('click', (event) => {
@@ -260,6 +275,55 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         updateBattlePickerSelection(picker, '');
+    });
+
+    const updateStadiumSideButtons = (group, selectedSide) => {
+        group.querySelectorAll('[data-stadium-side-choice]').forEach((button) => {
+            const isSelected = button.dataset.sideChoice === selectedSide;
+            button.classList.toggle('border-cyan-400/70', isSelected);
+            button.classList.toggle('bg-cyan-400/10', isSelected);
+            button.classList.toggle('text-cyan-100', isSelected);
+
+            button.classList.toggle('border-slate-700/80', !isSelected);
+            button.classList.toggle('border-slate-700', !isSelected);
+            button.classList.toggle('bg-slate-950/70', !isSelected);
+            button.classList.toggle('text-slate-300', !isSelected);
+        });
+    };
+
+    document.addEventListener('click', (event) => {
+        const sideButton = event.target.closest('[data-stadium-side-choice]');
+        if (!sideButton) {
+            return;
+        }
+
+        const group = sideButton.closest('[data-stadium-side-group]');
+        const control = sideButton.closest('[data-stadium-side-control]');
+        if (!group || !control) {
+            return;
+        }
+
+        const sideInput = group.querySelector('[data-stadium-side-input]');
+        const selectedSide = sideButton.dataset.sideChoice || '';
+        const opposingSide = selectedSide === 'X' ? 'B' : (selectedSide === 'B' ? 'X' : '');
+
+        if (sideInput) {
+            sideInput.value = selectedSide;
+        }
+        updateStadiumSideButtons(group, selectedSide);
+
+        control.querySelectorAll('[data-stadium-side-group]').forEach((candidate) => {
+            if (candidate === group) {
+                return;
+            }
+
+            const candidateInput = candidate.querySelector('[data-stadium-side-input]');
+            if (candidateInput) {
+                candidateInput.value = opposingSide;
+            }
+
+            updateStadiumSideButtons(candidate, opposingSide);
+        });
     });
 
     const floatingRails = document.querySelectorAll('[data-float-rail]');

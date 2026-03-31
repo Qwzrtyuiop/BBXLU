@@ -11,27 +11,50 @@
         ])
         ->unique('id')
         ->values();
-    $statCards = [
-        ['label' => 'Wins', 'value' => $profileStats['wins'], 'tone' => 'text-amber-100'],
-        ['label' => 'Top 4', 'value' => $profileStats['top4'], 'tone' => 'text-cyan-100'],
-        ['label' => 'Awards', 'value' => $profileStats['awards'], 'tone' => 'text-emerald-100'],
-        ['label' => 'Match Record', 'value' => $profileStats['match_record'], 'tone' => 'text-slate-100'],
-        ['label' => 'Win Rate %', 'value' => $profileStats['win_rate'] !== null ? number_format($profileStats['win_rate'], 1).'%' : '-', 'tone' => 'text-cyan-100'],
-        ['label' => 'Top Cut %', 'value' => $profileStats['top_cut_rate'] !== null ? number_format($profileStats['top_cut_rate'], 1).'%' : '-', 'tone' => 'text-amber-100'],
-        ['label' => 'Avg Score', 'value' => $profileStats['avg_score'] !== null ? number_format($profileStats['avg_score'], 1) : '-', 'tone' => 'text-slate-100'],
-        ['label' => 'Avg Against', 'value' => $profileStats['avg_against'] !== null ? number_format($profileStats['avg_against'], 1) : '-', 'tone' => 'text-slate-100'],
-        ['label' => 'Battle Pts', 'value' => $profileStats['battle_points'], 'tone' => 'text-cyan-100'],
-        ['label' => 'Byes', 'value' => $profileStats['byes'], 'tone' => 'text-emerald-100'],
-        ['label' => 'Most Used Bey', 'value' => $profileStats['most_used_bey'] ?: '-', 'tone' => 'text-fuchsia-100', 'meta' => $profileStats['most_used_bey_count'] > 0 ? $profileStats['most_used_bey_count'].' uses' : null],
-        ['label' => 'Best Finish', 'value' => $profileStats['best_finish'] ? \Illuminate\Support\Str::headline($profileStats['best_finish']) : '-', 'tone' => 'text-fuchsia-100'],
-        ['label' => 'Spin %', 'value' => $profileStats['finish_percentages']['spin'] !== null ? number_format($profileStats['finish_percentages']['spin'], 1).'%' : '-', 'tone' => 'text-slate-100'],
-        ['label' => 'Burst %', 'value' => $profileStats['finish_percentages']['burst'] !== null ? number_format($profileStats['finish_percentages']['burst'], 1).'%' : '-', 'tone' => 'text-slate-100'],
-        ['label' => 'Over %', 'value' => $profileStats['finish_percentages']['over'] !== null ? number_format($profileStats['finish_percentages']['over'], 1).'%' : '-', 'tone' => 'text-slate-100'],
-        ['label' => 'Extreme %', 'value' => $profileStats['finish_percentages']['extreme'] !== null ? number_format($profileStats['finish_percentages']['extreme'], 1).'%' : '-', 'tone' => 'text-slate-100'],
+    $statGroups = [
+        [
+            'eyebrow' => 'Competitive Snapshot',
+            'title' => 'Event Performance',
+            'accent' => 'cyan',
+            'cards' => [
+                ['label' => 'Wins', 'value' => $profileStats['wins'], 'tone' => 'text-amber-100'],
+                ['label' => 'Top 4', 'value' => $profileStats['top4'], 'tone' => 'text-cyan-100'],
+                ['label' => 'Awards', 'value' => $profileStats['awards'], 'tone' => 'text-emerald-100'],
+                ['label' => 'Match Record', 'value' => $profileStats['match_record'], 'tone' => 'text-slate-100'],
+                ['label' => 'Win Rate %', 'value' => $profileStats['win_rate'] !== null ? number_format($profileStats['win_rate'], 1).'%' : '-', 'tone' => 'text-cyan-100'],
+                ['label' => 'Top Cut %', 'value' => $profileStats['top_cut_rate'] !== null ? number_format($profileStats['top_cut_rate'], 1).'%' : '-', 'tone' => 'text-amber-100'],
+            ],
+        ],
+        [
+            'eyebrow' => 'Battle Profile',
+            'title' => 'Scoring And Sides',
+            'accent' => 'emerald',
+            'cards' => [
+                ['label' => 'Avg Score', 'value' => $profileStats['avg_score'] !== null ? number_format($profileStats['avg_score'], 1) : '-', 'tone' => 'text-slate-100'],
+                ['label' => 'Avg Against', 'value' => $profileStats['avg_against'] !== null ? number_format($profileStats['avg_against'], 1) : '-', 'tone' => 'text-slate-100'],
+                ['label' => 'Battle Pts', 'value' => $profileStats['battle_points'], 'tone' => 'text-cyan-100'],
+                ['label' => 'Byes', 'value' => $profileStats['byes'], 'tone' => 'text-emerald-100'],
+                ['label' => 'X Side Win %', 'value' => $profileStats['x_side_win_rate'] !== null ? number_format($profileStats['x_side_win_rate'], 1).'%' : '-', 'tone' => 'text-slate-100', 'meta' => $profileStats['x_side_record']],
+                ['label' => 'B Side Win %', 'value' => $profileStats['b_side_win_rate'] !== null ? number_format($profileStats['b_side_win_rate'], 1).'%' : '-', 'tone' => 'text-slate-100', 'meta' => $profileStats['b_side_record']],
+            ],
+        ],
+        [
+            'eyebrow' => 'Finish Profile',
+            'title' => 'Bey And Finish Trends',
+            'accent' => 'fuchsia',
+            'cards' => [
+                ['label' => 'Most Used Bey', 'value' => $profileStats['most_used_bey'] ?: '-', 'tone' => 'text-fuchsia-100', 'meta' => $profileStats['most_used_bey_count'] > 0 ? $profileStats['most_used_bey_count'].' uses' : null],
+                ['label' => 'Best Finish', 'value' => $profileStats['best_finish'] ? \Illuminate\Support\Str::headline($profileStats['best_finish']) : '-', 'tone' => 'text-fuchsia-100'],
+                ['label' => 'Spin %', 'value' => $profileStats['finish_percentages']['spin'] !== null ? number_format($profileStats['finish_percentages']['spin'], 1).'%' : '-', 'tone' => 'text-slate-100'],
+                ['label' => 'Burst %', 'value' => $profileStats['finish_percentages']['burst'] !== null ? number_format($profileStats['finish_percentages']['burst'], 1).'%' : '-', 'tone' => 'text-slate-100'],
+                ['label' => 'Over %', 'value' => $profileStats['finish_percentages']['over'] !== null ? number_format($profileStats['finish_percentages']['over'], 1).'%' : '-', 'tone' => 'text-slate-100'],
+                ['label' => 'Extreme %', 'value' => $profileStats['finish_percentages']['extreme'] !== null ? number_format($profileStats['finish_percentages']['extreme'], 1).'%' : '-', 'tone' => 'text-slate-100'],
+            ],
+        ],
     ];
 @endphp
 
-<div class="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(20rem,0.9fr)]">
+<div class="grid gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(22rem,0.9fr)]">
     <section class="space-y-4">
         <article class="overflow-hidden border border-cyan-400/30 bg-[linear-gradient(145deg,rgba(8,47,73,0.82)_0%,rgba(2,6,23,0.95)_50%,rgba(15,23,42,0.98)_100%)] shadow-[0_24px_60px_rgba(2,6,23,0.42)]">
             <div class="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,1fr)] lg:p-5">
@@ -95,19 +118,46 @@
             </div>
         </article>
 
-        <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-6">
-            @foreach ($statCards as $card)
-                <article class="border border-slate-800/80 bg-slate-950/75 px-4 py-3">
-                    <p class="type-kicker text-[10px] text-slate-500">{{ $card['label'] }}</p>
-                    <p class="mt-2 break-words text-xl font-bold {{ $card['tone'] }}">{{ $card['value'] }}</p>
-                    @if (! empty($card['meta']))
-                        <p class="mt-1 text-[11px] text-slate-500">{{ $card['meta'] }}</p>
-                    @endif
+        <section class="grid gap-4 xl:grid-cols-2 2xl:grid-cols-3">
+            @foreach ($statGroups as $group)
+                @php
+                    $groupBorder = match ($group['accent']) {
+                        'emerald' => 'border-emerald-400/20',
+                        'fuchsia' => 'border-fuchsia-400/20',
+                        default => 'border-cyan-400/20',
+                    };
+                    $groupEyebrow = match ($group['accent']) {
+                        'emerald' => 'text-emerald-300/75',
+                        'fuchsia' => 'text-fuchsia-300/75',
+                        default => 'text-cyan-300/75',
+                    };
+                    $groupTitle = match ($group['accent']) {
+                        'emerald' => 'text-emerald-100',
+                        'fuchsia' => 'text-fuchsia-100',
+                        default => 'text-cyan-100',
+                    };
+                @endphp
+                <article class="border {{ $groupBorder }} bg-slate-950/72 p-4">
+                    <div class="border-b border-slate-800/80 pb-3">
+                        <p class="type-kicker text-[10px] {{ $groupEyebrow }}">{{ $group['eyebrow'] }}</p>
+                        <h3 class="type-headline mt-1 text-lg {{ $groupTitle }}">{{ $group['title'] }}</h3>
+                    </div>
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                        @foreach ($group['cards'] as $card)
+                            <article class="border border-slate-800/80 bg-slate-950/78 px-4 py-3">
+                                <p class="type-kicker text-[10px] text-slate-500">{{ $card['label'] }}</p>
+                                <p class="mt-2 break-words text-xl font-bold {{ $card['tone'] }}">{{ $card['value'] }}</p>
+                                @if (! empty($card['meta']))
+                                    <p class="mt-1 text-[11px] text-slate-500">{{ $card['meta'] }}</p>
+                                @endif
+                            </article>
+                        @endforeach
+                    </div>
                 </article>
             @endforeach
         </section>
 
-        <section class="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <section class="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
             <article class="border border-cyan-400/20 bg-slate-950/72 p-4">
                 <div class="flex flex-wrap items-end justify-between gap-3 border-b border-slate-800/80 pb-3">
                     <div>
@@ -204,7 +254,7 @@
         </section>
     </section>
 
-    <aside class="space-y-4">
+    <aside class="space-y-4 2xl:pt-0">
         <article class="border border-slate-800/80 bg-slate-950/72 p-4">
             <div class="border-b border-slate-800/80 pb-2">
                 <p class="type-kicker text-[10px] text-emerald-300/75">Schedule</p>

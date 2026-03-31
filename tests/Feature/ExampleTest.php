@@ -7,6 +7,7 @@ use App\Models\EventMatch;
 use App\Models\EventRound;
 use App\Models\EventType;
 use App\Models\Player;
+use App\Models\StadiumSide;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -119,6 +120,76 @@ class ExampleTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('public-player');
+    }
+
+    public function test_public_player_profile_displays_x_and_b_side_win_rates(): void
+    {
+        $user = User::factory()->create([
+            'nickname' => 'side-player',
+            'name' => 'Side Player',
+            'role' => 'user',
+            'is_claimed' => true,
+        ]);
+        $player = Player::query()->create([
+            'user_id' => $user->id,
+        ]);
+        $opponent = Player::query()->create([
+            'user_id' => User::factory()->create(['nickname' => 'side-opponent'])->id,
+        ]);
+        $event = $this->createPublicEvent('Side Stats Finals', 'finished');
+        $round = EventRound::query()->create([
+            'event_id' => $event->id,
+            'stage' => 'single_elim',
+            'round_number' => 1,
+            'label' => 'Main Bracket',
+            'status' => 'completed',
+        ]);
+        $xSideId = StadiumSide::query()->where('code', 'X')->value('id');
+        $bSideId = StadiumSide::query()->where('code', 'B')->value('id');
+
+        EventMatch::query()->create([
+            'event_id' => $event->id,
+            'event_round_id' => $round->id,
+            'stage' => 'single_elim',
+            'player1_id' => $player->id,
+            'player1_stadium_side_id' => $xSideId,
+            'player2_id' => $opponent->id,
+            'player2_stadium_side_id' => $bSideId,
+            'player1_score' => 4,
+            'player2_score' => 1,
+            'winner_id' => $player->id,
+            'round_number' => 1,
+            'match_number' => 1,
+            'status' => 'completed',
+            'is_bye' => false,
+        ]);
+
+        EventMatch::query()->create([
+            'event_id' => $event->id,
+            'event_round_id' => $round->id,
+            'stage' => 'single_elim',
+            'player1_id' => $opponent->id,
+            'player1_stadium_side_id' => $xSideId,
+            'player2_id' => $player->id,
+            'player2_stadium_side_id' => $bSideId,
+            'player1_score' => 4,
+            'player2_score' => 2,
+            'winner_id' => $opponent->id,
+            'round_number' => 1,
+            'match_number' => 2,
+            'status' => 'completed',
+            'is_bye' => false,
+        ]);
+
+        $response = $this->get(route('user.dashboard.profile', $player));
+
+        $response->assertOk();
+        $response->assertSee('X Side Win %');
+        $response->assertSee('B Side Win %');
+        $response->assertSee('100.0%');
+        $response->assertSee('0.0%');
+        $response->assertSee('1-0');
+        $response->assertSee('0-1');
     }
 
     private function createPublicEvent(string $title, string $status): Event

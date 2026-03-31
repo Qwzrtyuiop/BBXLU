@@ -10,6 +10,7 @@ use App\Models\EventParticipant;
 use App\Models\EventRound;
 use App\Models\EventType;
 use App\Models\Player;
+use App\Models\StadiumSide;
 use App\Models\User;
 use App\Services\BracketService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -349,6 +350,75 @@ class EventWorkflowTest extends TestCase
         ]);
     }
 
+    public function test_match_stadium_side_auto_sets_the_opposite_side_for_the_other_player(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'stadium-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Stadium Side Cup',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-03-28',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $player1 = Player::query()->create([
+            'user_id' => User::factory()->create(['nickname' => 'left'])->id,
+        ]);
+        $player2 = Player::query()->create([
+            'user_id' => User::factory()->create(['nickname' => 'right'])->id,
+        ]);
+
+        EventParticipant::query()->create([
+            'event_id' => $event->id,
+            'player_id' => $player1->id,
+            'deck_bey1' => 'Phoenix',
+            'deck_bey2' => 'Dran',
+            'deck_bey3' => 'Wizard',
+            'deck_registered_at' => now(),
+        ]);
+        EventParticipant::query()->create([
+            'event_id' => $event->id,
+            'player_id' => $player2->id,
+            'deck_bey1' => 'Knight',
+            'deck_bey2' => 'Shark',
+            'deck_bey3' => 'Leon',
+            'deck_registered_at' => now(),
+        ]);
+
+        $response = $this->post(route('events.matches.store', $event), [
+            'player1_id' => $player1->id,
+            'player2_id' => $player2->id,
+            'player1_stadium_side' => 'X',
+            'result_1' => 1,
+            'result_type_1' => 'spin',
+            'result_2' => 1,
+            'result_type_2' => 'burst',
+            'result_3' => 1,
+            'result_type_3' => 'spin',
+            'round_number' => 1,
+        ]);
+
+        $response->assertRedirect($this->workspaceRoute($event));
+
+        $match = EventMatch::query()
+            ->with(['player1StadiumSide', 'player2StadiumSide'])
+            ->where('event_id', $event->id)
+            ->firstOrFail();
+
+        $this->assertSame('X', $match->player1StadiumSide?->code);
+        $this->assertSame('B', $match->player2StadiumSide?->code);
+        $this->assertSame(StadiumSide::query()->where('code', 'X')->value('id'), $match->player1_stadium_side_id);
+        $this->assertSame(StadiumSide::query()->where('code', 'B')->value('id'), $match->player2_stadium_side_id);
+    }
+
     public function test_match_can_finish_before_all_seven_battles_are_filled(): void
     {
         $this->actingAs($this->createAdmin());
@@ -671,7 +741,7 @@ class EventWorkflowTest extends TestCase
         $this->assertSame($players[2]->id, $finalMatch->player2_id);
     }
 
-    public function test_single_elimination_creates_placeholder_next_round_match_after_first_winner(): void
+    public function test_single_elimination_does_not_create_final_round_until_both_semifinals_finish(): void
     {
         $this->actingAs($this->createAdmin());
 
@@ -722,24 +792,84 @@ class EventWorkflowTest extends TestCase
             [1, 'spin'],
         ])->assertRedirect($this->workspaceRoute($event));
 
+        $placeholderFinal = EventMatch::query()
+            ->where('event_id', $event->id)
+            ->where('stage', 'single_elim')
+            ->where('round_number', 2)
+            ->first();
+
+        $this->assertNull($placeholderFinal);
+    }
+
+    public function test_single_elimination_creates_placeholder_next_round_match_after_first_winner_in_earlier_rounds(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'async-qf-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Async Quarterfinal Bracket',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-15',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $players = collect(['alpha', 'beta', 'charlie', 'delta', 'echo', 'foxtrot', 'golf', 'hotel'])->map(function (string $nickname) use ($event) {
+            $player = Player::query()->create([
+                'user_id' => User::factory()->create(['nickname' => $nickname])->id,
+            ]);
+
+            EventParticipant::query()->create([
+                'event_id' => $event->id,
+                'player_id' => $player->id,
+                'deck_name' => strtoupper($nickname).' Deck',
+                'deck_bey1' => 'Bey A',
+                'deck_bey2' => 'Bey B',
+                'deck_bey3' => 'Bey C',
+                'deck_registered_at' => now(),
+            ]);
+
+            return $player;
+        });
+
+        $this->post(route('events.bracket.generate', $event))->assertRedirect($this->workspaceRoute($event));
+
+        $quarterfinals = $event->fresh('matches')->matches
+            ->where('stage', 'single_elim')
+            ->where('round_number', 1)
+            ->sortBy('match_number')
+            ->values();
+
+        $this->submitMatchResult($event, $quarterfinals[0], [
+            [1, 'spin'],
+            [1, 'burst'],
+            [1, 'spin'],
+        ])->assertRedirect($this->workspaceRoute($event));
+
         $this->assertDatabaseHas('event_rounds', [
             'event_id' => $event->id,
             'stage' => 'single_elim',
             'round_number' => 2,
         ]);
 
-        $placeholderFinal = EventMatch::query()
+        $placeholderSemifinal = EventMatch::query()
             ->where('event_id', $event->id)
             ->where('stage', 'single_elim')
             ->where('round_number', 2)
             ->firstOrFail();
 
-        $this->assertSame($players[0]->id, $placeholderFinal->player1_id);
-        $this->assertNull($placeholderFinal->player2_id);
-        $this->assertSame('pending', $placeholderFinal->status);
-        $this->assertFalse($placeholderFinal->is_bye);
-        $this->assertSame($semifinals[0]->id, $placeholderFinal->source_match1_id);
-        $this->assertSame($semifinals[1]->id, $placeholderFinal->source_match2_id);
+        $this->assertSame($players[0]->id, $placeholderSemifinal->player1_id);
+        $this->assertNull($placeholderSemifinal->player2_id);
+        $this->assertSame('pending', $placeholderSemifinal->status);
+        $this->assertFalse($placeholderSemifinal->is_bye);
+        $this->assertSame($quarterfinals[0]->id, $placeholderSemifinal->source_match1_id);
+        $this->assertSame($quarterfinals[1]->id, $placeholderSemifinal->source_match2_id);
     }
 
     public function test_seeded_single_elimination_bracket_uses_real_seed_order_and_auto_advances_byes(): void
