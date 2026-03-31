@@ -162,54 +162,52 @@
     <aside class="mb-5 mx-auto w-full max-w-6xl sm:mb-6 xl:mb-0">
         <div data-float-rail class="relative overflow-hidden border border-emerald-400/40 bg-[linear-gradient(160deg,rgba(6,78,59,0.28)_0%,rgba(2,6,23,0.95)_42%,rgba(2,6,23,0.99)_100%)] p-4 shadow-[0_16px_36px_rgba(2,6,23,0.5)] xl:fixed xl:left-[calc(50%-38rem)] xl:w-48 2xl:left-[calc(50%-45rem)] 2xl:w-56 min-[1792px]:left-[calc(50%-58rem)] min-[1792px]:w-80">
             <div class="relative">
+                @php
+                    $liveFeedEvents = ($ongoingTournaments ?? collect())->values();
+                    $liveFeedPreviews = collect($ongoingTournamentPreviews ?? []);
+                @endphp
                 <div class="mb-3">
                     <p class="type-kicker text-[10px] text-emerald-300/75">Live Event Feed</p>
                     <div class="mt-1 flex items-center justify-between gap-2">
-                        <h2 class="type-title text-sm text-emerald-100">Ongoing Tournament</h2>
+                        <h2 class="type-title text-sm text-emerald-100">{{ $liveFeedEvents->count() > 1 ? 'Ongoing Tournaments' : 'Ongoing Tournament' }}</h2>
                         <span class="inline-flex h-2.5 w-2.5 rounded-full bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.9)]"></span>
                     </div>
                 </div>
 
-                @if ($ongoingTournament)
-                    @php
-                        $currentLiveRound = $ongoingTournamentPreview['currentRound'] ?? null;
-                        $currentLiveMatch = $ongoingTournamentPreview['featuredMatch'] ?? null;
-                        $currentLiveRoundLabel = $currentLiveRound
-                            ? ($currentLiveRound->label ?: ucfirst(str_replace('_', ' ', $currentLiveRound->stage)).' Round '.$currentLiveRound->round_number)
-                            : 'Waiting for Round 1';
-                    @endphp
-                    <div class="mt-1">
-                        <p class="type-kicker text-[10px] text-emerald-300/75">Now Active</p>
-                        <p class="type-title mt-1 text-sm leading-snug text-slate-100 break-words">{{ $ongoingTournament->title }}</p>
-                        <div class="mt-3 border-t border-emerald-400/20 pt-2.5">
-                            <p class="type-label text-[11px] text-slate-200">
-                                {{ optional($ongoingTournament->date)->format('d M Y') ?? 'TBD' }}
-                            </p>
-                            <p class="type-body mt-1 text-xs leading-snug text-slate-300 break-words">
-                                {{ $ongoingTournament->location ?: 'TBD Venue' }}
-                            </p>
-                        </div>
+                @if ($liveFeedEvents->isNotEmpty())
+                    <div class="mt-1 space-y-2.5 xl:max-h-[calc(100vh-10rem)] xl:overflow-y-auto xl:pr-1">
+                        @foreach ($liveFeedEvents as $liveEvent)
+                            @php
+                                $livePreview = $liveFeedPreviews->get($liveEvent->id, []);
+                                $currentLiveRound = $livePreview['currentRound'] ?? null;
+                                $currentLiveRoundLabel = $currentLiveRound
+                                    ? ($currentLiveRound->label ?: ucfirst(str_replace('_', ' ', $currentLiveRound->stage)).' Round '.$currentLiveRound->round_number)
+                                    : 'Waiting for Round 1';
+                            @endphp
+                            <article class="border border-emerald-400/30 bg-slate-950/45 px-3 py-2.5">
+                                <p class="type-kicker text-[10px] text-emerald-300/75">Now Active</p>
+                                <p class="type-title mt-1 text-sm leading-snug text-slate-100 break-words">{{ $liveEvent->title }}</p>
+
+                                <div class="mt-3 border-t border-emerald-400/20 pt-2.5">
+                                    <p class="type-label text-[11px] text-slate-200">
+                                        {{ optional($liveEvent->date)->format('d M Y') ?? 'TBD' }}
+                                    </p>
+                                    <p class="type-body mt-1 text-xs leading-snug text-slate-300 break-words">
+                                        {{ $liveEvent->location ?: 'TBD Venue' }}
+                                    </p>
+                                </div>
+
+                                <div class="mt-3 border border-emerald-400/20 bg-slate-950/45 px-3 py-2">
+                                    <p class="type-label text-[10px] text-emerald-200">{{ $liveEvent->bracketLabel() }}</p>
+                                    <p class="type-body mt-1 text-xs text-slate-400">{{ $currentLiveRoundLabel }}</p>
+                                </div>
+
+                                <a href="{{ route('live.viewer.event', $liveEvent) }}" class="type-label mt-3 inline-flex w-full items-center justify-center border border-emerald-400/60 bg-emerald-400/10 px-3 py-2 text-[10px] text-emerald-100 transition hover:bg-emerald-400/18">
+                                    Open Live Viewer
+                                </a>
+                            </article>
+                        @endforeach
                     </div>
-
-                    <div class="mt-3 border border-emerald-400/20 bg-slate-950/45 px-3 py-2">
-                        <p class="type-label text-[10px] text-emerald-200">{{ $ongoingTournament->bracketLabel() }}</p>
-                        <p class="type-body mt-1 text-xs text-slate-400">{{ $currentLiveRoundLabel }}</p>
-                    </div>
-
-                    <!-- <div class="mt-3 border border-slate-800/80 bg-slate-950/55 px-3 py-2">
-                        <p class="type-kicker text-[10px] text-slate-500">Live Focus</p>
-                        @if ($currentLiveMatch)
-                            <p class="type-body mt-1 text-xs leading-snug text-slate-200 break-words">
-                                {{ $currentLiveMatch->player1->user->nickname }} vs {{ $currentLiveMatch->player2?->user->nickname ?? 'BYE' }}
-                            </p>
-                        @else
-                            <p class="type-body mt-1 text-xs leading-snug text-slate-400">No unresolved match right now.</p>
-                        @endif
-                    </div> -->
-
-                    <a href="{{ route('live.viewer.event', $ongoingTournament) }}" class="type-label mt-3 inline-flex w-full items-center justify-center border border-emerald-400/60 bg-emerald-400/10 px-3 py-2 text-[10px] text-emerald-100 transition hover:bg-emerald-400/18">
-                        Open Live Viewer
-                    </a>
                 @else
                     <div class="mt-1">
                         <p class="type-title text-sm text-slate-100">No Ongoing Event</p>

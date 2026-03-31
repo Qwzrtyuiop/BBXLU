@@ -22,12 +22,17 @@ class EventOverviewService
 
     public function homeData(): array
     {
-        $ongoingTournament = $this->ongoingTournament();
+        $ongoingTournaments = $this->ongoingTournaments();
+        $ongoingTournament = $ongoingTournaments->first();
         $latestEvent = $this->latestEvent();
 
         return [
             'stats' => $this->stats(),
             'events' => $this->allEvents(),
+            'ongoingTournaments' => $ongoingTournaments,
+            'ongoingTournamentPreviews' => $ongoingTournaments->mapWithKeys(fn (Event $event) => [
+                $event->id => $this->publicEventPreview($event),
+            ]),
             'ongoingTournament' => $ongoingTournament,
             'ongoingTournamentPreview' => $this->publicEventPreview($ongoingTournament),
             'latestEvent' => $latestEvent,
@@ -173,7 +178,7 @@ class EventOverviewService
             ->get();
     }
 
-    private function ongoingTournament(): ?Event
+    private function ongoingTournaments(): Collection
     {
         return Event::query()
             ->with(['eventType', 'creator'])
@@ -182,7 +187,12 @@ class EventOverviewService
             ->where('status', 'upcoming')
             ->orderBy('date')
             ->orderBy('id')
-            ->first();
+            ->get();
+    }
+
+    private function ongoingTournament(): ?Event
+    {
+        return $this->ongoingTournaments()->first();
     }
 
     private function activeDashboardEvent(): ?Event

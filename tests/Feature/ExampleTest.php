@@ -37,6 +37,22 @@ class ExampleTest extends TestCase
         $response->assertOk();
     }
 
+    public function test_public_home_page_displays_multiple_live_events(): void
+    {
+        $firstEvent = $this->createPublicEvent('Metro Open Live', 'upcoming');
+        $secondEvent = $this->createPublicEvent('Test Active', 'upcoming');
+
+        $firstEvent->forceFill(['is_active' => true])->save();
+        $secondEvent->forceFill(['is_active' => true])->save();
+
+        $response = $this->get(route('home'));
+
+        $response->assertOk();
+        $response->assertSee('Ongoing Tournaments');
+        $response->assertSee('Metro Open Live');
+        $response->assertSee('Test Active');
+    }
+
     public function test_public_players_page_is_accessible(): void
     {
         $response = $this->get(route('players.index'));
