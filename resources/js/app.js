@@ -200,6 +200,68 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    const updateBattlePickerSelection = (picker, selectedChoice) => {
+        picker.querySelectorAll('[data-battle-choice]').forEach((button) => {
+            const isSelected = button.dataset.choice === selectedChoice;
+            button.classList.toggle('border-amber-400/70', isSelected);
+            button.classList.toggle('bg-amber-400/12', isSelected);
+            button.classList.toggle('text-amber-100', isSelected);
+            button.classList.toggle('shadow-[0_10px_24px_rgba(251,191,36,0.12)]', isSelected);
+
+            button.classList.toggle('border-slate-700/80', !isSelected);
+            button.classList.toggle('bg-slate-950/75', !isSelected);
+            button.classList.toggle('text-slate-300', !isSelected);
+        });
+    };
+
+    document.addEventListener('click', (event) => {
+        const choiceButton = event.target.closest('[data-battle-choice]');
+        if (choiceButton) {
+            const picker = choiceButton.closest('[data-battle-picker]');
+            if (!picker) {
+                return;
+            }
+
+            const winnerInput = picker.querySelector('[data-battle-result-winner]');
+            const typeInput = picker.querySelector('[data-battle-result-type]');
+            const [winner = '', type = ''] = (choiceButton.dataset.choice || '').split(':');
+
+            if (winnerInput) {
+                winnerInput.value = winner;
+            }
+
+            if (typeInput) {
+                typeInput.value = type;
+            }
+
+            updateBattlePickerSelection(picker, `${winner}:${type}`);
+            return;
+        }
+
+        const clearButton = event.target.closest('[data-battle-clear]');
+        if (!clearButton) {
+            return;
+        }
+
+        const picker = clearButton.closest('[data-battle-picker]');
+        if (!picker) {
+            return;
+        }
+
+        const winnerInput = picker.querySelector('[data-battle-result-winner]');
+        const typeInput = picker.querySelector('[data-battle-result-type]');
+
+        if (winnerInput) {
+            winnerInput.value = '';
+        }
+
+        if (typeInput) {
+            typeInput.value = '';
+        }
+
+        updateBattlePickerSelection(picker, '');
+    });
+
     const floatingRails = document.querySelectorAll('[data-float-rail]');
     const eventsAnchor = document.querySelector('[data-events-anchor]');
     const desktopMedia = window.matchMedia('(min-width: 1280px)');

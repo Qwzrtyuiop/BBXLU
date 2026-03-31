@@ -325,27 +325,13 @@
                         <p class="mt-1 text-xs text-slate-500">First to {{ $matchWinThreshold }} points. Spin = 1, Burst = 2, Over = 2, Extreme = 3.</p>
                         <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                             @foreach (range(1, $battleSlotCount) as $slot)
-                                <div class="grid gap-2 border border-slate-800 bg-slate-900/45 p-3">
-                                    <p class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Battle {{ $slot }}</p>
-                                    <label class="grid gap-1">
-                                        <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Winner</span>
-                                        <select name="result_{{ $slot }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
-                                            <option value="">-</option>
-                                            <option value="1" @selected((string) $formValue('result_'.$slot, $match->{'result_'.$slot}) === '1')>{{ $player1Name }}</option>
-                                            <option value="2" @selected((string) $formValue('result_'.$slot, $match->{'result_'.$slot}) === '2')>{{ $player2Name }}</option>
-                                        </select>
-                                    </label>
-                                    <label class="grid gap-1">
-                                        <span class="text-[10px] uppercase tracking-[0.14em] text-slate-500">Finish</span>
-                                        <select name="result_type_{{ $slot }}" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-100 focus:border-amber-500 focus:outline-none">
-                                            <option value="">-</option>
-                                            <option value="spin" @selected($formValue('result_type_'.$slot, $match->{'result_type_'.$slot}) === 'spin')>Spin (1 pt)</option>
-                                            <option value="burst" @selected($formValue('result_type_'.$slot, $match->{'result_type_'.$slot}) === 'burst')>Burst (2 pts)</option>
-                                            <option value="over" @selected($formValue('result_type_'.$slot, $match->{'result_type_'.$slot}) === 'over')>Over (2 pts)</option>
-                                            <option value="extreme" @selected($formValue('result_type_'.$slot, $match->{'result_type_'.$slot}) === 'extreme')>Extreme (3 pts)</option>
-                                        </select>
-                                    </label>
-                                </div>
+                                @include('partials.battle-result-picker', [
+                                    'slot' => $slot,
+                                    'player1Name' => $player1Name,
+                                    'player2Name' => $player2Name,
+                                    'selectedWinner' => $formValue('result_'.$slot, $match->{'result_'.$slot}),
+                                    'selectedType' => $formValue('result_type_'.$slot, $match->{'result_type_'.$slot}),
+                                ])
                             @endforeach
                         </div>
                     </div>
