@@ -285,7 +285,7 @@ class EventOverviewService
             ->with(['eventType', 'creator'])
             ->withCount('participants')
             ->get()
-            ->sort(function (Event $left, Event $right): int {
+            ->sort(function (Event $left, Event $right) use ($sessionActiveEventId): int {
                 $leftRank = $left->id === $sessionActiveEventId ? 0 : ($left->is_active ? 1 : ($left->status === 'upcoming' ? 2 : 3));
                 $rightRank = $right->id === $sessionActiveEventId ? 0 : ($right->is_active ? 1 : ($right->status === 'upcoming' ? 2 : 3));
 
