@@ -65,7 +65,6 @@
                 </button>
             </div>
 
-            <div class="mx-auto mt-5 w-full max-w-6xl border-t-4 border-cyan-300/80"></div>
         </div>
     </section>
 
