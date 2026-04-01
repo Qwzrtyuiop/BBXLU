@@ -46,14 +46,18 @@ class DashboardController extends Controller
             $leaderboard = $rankingService->leaderboardWithAllPlayers();
             $leaderboardProfiles = $rankingService->leaderboardProfilePreviews($leaderboard);
             $playersWithoutResults = $rankingService->playersWithoutResults();
+            $sessionActiveEventId = $dashboardData['dashboardSessionActiveEventId'];
             $playerRegistrationEvent = Event::query()
                 ->with('eventType')
                 ->where('status', 'upcoming')
-                ->orderByRaw("CASE WHEN is_active = 1 THEN 0 ELSE 1 END")
+                ->orderByRaw(
+                    'CASE WHEN id = ? THEN 0 WHEN is_active = 1 THEN 1 ELSE 2 END',
+                    [$sessionActiveEventId ?? 0]
+                )
                 ->orderBy('date')
                 ->orderBy('id')
                 ->get()
-                ->first(fn (Event $event) => ! $event->hasStarted() && (! $event->usesLockedDecks() || $event->is_active));
+                ->first(fn (Event $event) => ! $event->hasStarted() && (! $event->usesLockedDecks() || $event->id === $sessionActiveEventId));
             $registerableUsers = $this->registerableUsersForEvent($playerRegistrationEvent);
         }
 

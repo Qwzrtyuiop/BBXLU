@@ -529,10 +529,6 @@ class LocalMockDataSeeder extends Seeder
     private function createAwards(int $eventId, array $awardIds, array $awards): void
     {
         foreach ($awards as $awardName => $playerNumber) {
-            if (! array_key_exists($awardName, $awardIds)) {
-                continue;
-            }
-
             DB::table('event_awards')->insert([
                 'event_id' => $eventId,
                 'player_id' => $this->playerIds[$playerNumber],
@@ -646,6 +642,7 @@ class LocalMockDataSeeder extends Seeder
             if (Schema::hasTable('sessions')) {
                 DB::table('sessions')->whereIn('user_id', $mockUserIds)->delete();
             }
+
             DB::table('players')->whereIn('user_id', $mockUserIds)->delete();
             DB::table('users')->whereIn('id', $mockUserIds)->delete();
         }

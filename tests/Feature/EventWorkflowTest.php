@@ -2206,13 +2206,14 @@ class EventWorkflowTest extends TestCase
         ]);
 
         $response->assertRedirect(route('dashboard', ['panel' => 'events', 'event' => $secondEvent->id]));
+        $response->assertSessionHas('dashboard_active_event_id', $secondEvent->id);
         $this->assertDatabaseHas('events', [
             'id' => $firstEvent->id,
-            'is_active' => 0,
+            'is_active' => 1,
         ]);
         $this->assertDatabaseHas('events', [
             'id' => $secondEvent->id,
-            'is_active' => 1,
+            'is_active' => 0,
         ]);
     }
 
@@ -2255,14 +2256,59 @@ class EventWorkflowTest extends TestCase
         ]);
 
         $response->assertRedirect(route('dashboard', ['panel' => 'events', 'event' => $finishedEvent->id]));
+        $response->assertSessionHas('dashboard_active_event_id', $finishedEvent->id);
         $this->assertDatabaseHas('events', [
             'id' => $upcomingActiveEvent->id,
-            'is_active' => 0,
+            'is_active' => 1,
         ]);
         $this->assertDatabaseHas('events', [
             'id' => $finishedEvent->id,
-            'is_active' => 1,
+            'is_active' => 0,
             'status' => 'finished',
+        ]);
+    }
+
+    public function test_admin_can_toggle_event_public_live_status(): void
+    {
+        $this->actingAs($this->createAdmin());
+
+        $creator = User::factory()->create(['nickname' => 'go-live-host']);
+        $eventType = EventType::query()->first();
+
+        $event = Event::query()->create([
+            'title' => 'Public Live Candidate',
+            'description' => null,
+            'event_type_id' => $eventType->id,
+            'bracket_type' => 'single_elim',
+            'match_format' => 7,
+            'date' => '2026-04-07',
+            'location' => null,
+            'status' => 'upcoming',
+            'created_by' => $creator->id,
+        ]);
+
+        $goLiveResponse = $this->post(route('events.live.toggle', $event), [
+            'dashboard_redirect' => 1,
+            'dashboard_panel' => 'events',
+            'dashboard_event_id' => $event->id,
+        ]);
+
+        $goLiveResponse->assertRedirect(route('dashboard', ['panel' => 'events', 'event' => $event->id]));
+        $this->assertDatabaseHas('events', [
+            'id' => $event->id,
+            'is_active' => 1,
+        ]);
+
+        $stopLiveResponse = $this->post(route('events.live.toggle', $event), [
+            'dashboard_redirect' => 1,
+            'dashboard_panel' => 'events',
+            'dashboard_event_id' => $event->id,
+        ]);
+
+        $stopLiveResponse->assertRedirect(route('dashboard', ['panel' => 'events', 'event' => $event->id]));
+        $this->assertDatabaseHas('events', [
+            'id' => $event->id,
+            'is_active' => 0,
         ]);
     }
 
@@ -2282,7 +2328,6 @@ class EventWorkflowTest extends TestCase
             'date' => '2026-04-08',
             'location' => null,
             'status' => 'upcoming',
-            'is_active' => true,
             'created_by' => $creator->id,
         ]);
 
@@ -2297,6 +2342,8 @@ class EventWorkflowTest extends TestCase
             'status' => 'upcoming',
             'created_by' => $creator->id,
         ]);
+
+        $this->withSession(['dashboard_active_event_id' => $activeEvent->id]);
 
         $response = $this->get(route('dashboard', ['panel' => 'workspace', 'event' => $inactiveEvent->id]));
 

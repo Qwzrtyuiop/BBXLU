@@ -103,13 +103,15 @@ class EventOverviewService
 
     public function dashboardData(?int $selectedEventId = null, string $activePanel = 'overview'): array
     {
+        $sessionActiveEventId = $this->sessionActiveEventId();
         $ongoingTournament = $this->activeDashboardEvent();
         $latestEvent = $this->latestEvent();
-        $selectedEvent = $this->selectedEvent($selectedEventId, $activePanel, $ongoingTournament, $latestEvent);
+        $selectedEvent = $this->selectedEvent($selectedEventId, $activePanel, $ongoingTournament, $latestEvent, $sessionActiveEventId);
 
         $data = [
             'stats' => $this->stats(includeUpcoming: true),
             'ongoingTournament' => $ongoingTournament,
+            'dashboardSessionActiveEventId' => $sessionActiveEventId,
             'latestEvent' => $latestEvent,
             'latestChampion' => $this->latestChampion($latestEvent),
             'latestEventPlacements' => collect(),
@@ -197,6 +199,21 @@ class EventOverviewService
 
     private function activeDashboardEvent(): ?Event
     {
+        $sessionActiveEventId = $this->sessionActiveEventId();
+
+        if ($sessionActiveEventId) {
+            $sessionActiveEvent = Event::query()
+                ->with(['eventType', 'creator'])
+                ->withCount('participants')
+                ->where('id', $sessionActiveEventId)
+                ->whereIn('status', ['upcoming', 'finished'])
+                ->first();
+
+            if ($sessionActiveEvent) {
+                return $sessionActiveEvent;
+            }
+        }
+
         return Event::query()
             ->with(['eventType', 'creator'])
             ->withCount('participants')
@@ -262,19 +279,21 @@ class EventOverviewService
 
     private function adminEvents(): Collection
     {
+        $sessionActiveEventId = $this->sessionActiveEventId();
+
         return Event::query()
             ->with(['eventType', 'creator'])
             ->withCount('participants')
             ->get()
             ->sort(function (Event $left, Event $right): int {
-                $leftRank = $left->is_active ? 0 : ($left->status === 'upcoming' ? 1 : 2);
-                $rightRank = $right->is_active ? 0 : ($right->status === 'upcoming' ? 1 : 2);
+                $leftRank = $left->id === $sessionActiveEventId ? 0 : ($left->is_active ? 1 : ($left->status === 'upcoming' ? 2 : 3));
+                $rightRank = $right->id === $sessionActiveEventId ? 0 : ($right->is_active ? 1 : ($right->status === 'upcoming' ? 2 : 3));
 
                 if ($leftRank !== $rightRank) {
                     return $leftRank <=> $rightRank;
                 }
 
-                if ($leftRank === 2) {
+                if ($leftRank >= 3) {
                     return $right->date->timestamp <=> $left->date->timestamp
                         ?: $right->id <=> $left->id;
                 }
@@ -355,13 +374,17 @@ class EventOverviewService
         ];
     }
 
-    private function selectedEvent(?int $selectedEventId, string $activePanel, ?Event $ongoingTournament, ?Event $latestEvent): ?Event
+    private function selectedEvent(?int $selectedEventId, string $activePanel, ?Event $ongoingTournament, ?Event $latestEvent, ?int $sessionActiveEventId): ?Event
     {
         $query = Event::query()
             ->with(['eventType', 'creator'])
             ->withCount('participants');
 
         if ($activePanel === 'workspace') {
+            if ($selectedEventId && $selectedEventId === $sessionActiveEventId) {
+                return $query->find($selectedEventId);
+            }
+
             return $ongoingTournament;
         }
 
@@ -376,6 +399,13 @@ class EventOverviewService
         return $ongoingTournament
             ?? $latestEvent
             ?? $query->orderByDesc('date')->orderByDesc('id')->first();
+    }
+
+    private function sessionActiveEventId(): ?int
+    {
+        $sessionActiveEventId = (int) session('dashboard_active_event_id', 0);
+
+        return $sessionActiveEventId > 0 ? $sessionActiveEventId : null;
     }
 
     private function selectedEventParticipants(?Event $event): Collection

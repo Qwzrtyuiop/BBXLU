@@ -50,6 +50,7 @@ Route::middleware(['auth', 'admin'])->group(function (): void {
     Route::delete('/events/{event}/participants/{player}', [EventController::class, 'destroyParticipant'])->name('events.participants.destroy');
 
     Route::post('/events/{event}/activate', [EventController::class, 'activate'])->name('events.activate');
+    Route::post('/events/{event}/live', [EventController::class, 'toggleLive'])->name('events.live.toggle');
     Route::post('/events/{event}/matches', [EventController::class, 'storeMatch'])->name('events.matches.store');
     Route::delete('/events/{event}/matches/{match}', [EventController::class, 'destroyMatch'])->name('events.matches.destroy');
     Route::post('/events/{event}/bracket/generate', [EventController::class, 'generateBracketRound'])->name('events.bracket.generate');

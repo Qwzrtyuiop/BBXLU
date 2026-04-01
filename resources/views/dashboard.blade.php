@@ -1,16 +1,18 @@
 <x-layouts.app :title="'Dashboard | BBXLU'" :fullScreen="true" :hideTopSelectors="true" :hideFrameHeader="true" :hideGlobalFeedback="true">
     @php
+        $sessionActiveEventId = $dashboardSessionActiveEventId;
         $currentFocus = $ongoingTournament;
-        $currentFocusLink = $currentFocus ? route('dashboard', ['panel' => 'workspace']) : route('dashboard', ['panel' => 'events']);
+        $currentFocusLink = $currentFocus ? route('dashboard', ['panel' => 'workspace', 'event' => $currentFocus->id]) : route('dashboard', ['panel' => 'events']);
         $overviewEvent = $ongoingTournament ?? $upcomingEvents->first() ?? $selectedEvent ?? $latestEvent;
+        $overviewEventIsWorkspaceFocus = $overviewEvent && $sessionActiveEventId === $overviewEvent->id;
         $overviewEventLink = $overviewEvent
-            ? ($overviewEvent->is_active
-                ? route('dashboard', ['panel' => 'workspace'])
+            ? ($overviewEventIsWorkspaceFocus
+                ? route('dashboard', ['panel' => 'workspace', 'event' => $overviewEvent->id])
                 : route('dashboard', ['panel' => 'events', 'event' => $overviewEvent->id]))
             : route('dashboard', ['panel' => 'events']);
         $overviewEventIsToday = $overviewEvent?->date?->isToday() ?? false;
         $overviewEventLabel = $overviewEvent
-            ? ($overviewEvent->is_active
+            ? ($overviewEventIsWorkspaceFocus
                 ? 'Current Event'
                 : ($overviewEvent->status === 'upcoming'
                 ? ($overviewEventIsToday ? 'Current Event' : 'Next Event')
@@ -299,7 +301,7 @@
                             </div>
                             <div class="mt-2 space-y-1 overflow-y-auto no-scrollbar">
                                 @forelse ($overviewQueueEvents->take(3) as $event)
-                                    <a href="{{ route('dashboard', ['panel' => $event->is_active ? 'workspace' : 'events', 'event' => $event->id]) }}" class="block border border-slate-800/80 bg-slate-950/65 px-2.5 py-1 transition hover:border-amber-400/55">
+                                    <a href="{{ route('dashboard', ['panel' => $sessionActiveEventId === $event->id ? 'workspace' : 'events', 'event' => $event->id]) }}" class="block border border-slate-800/80 bg-slate-950/65 px-2.5 py-1 transition hover:border-amber-400/55">
                                         <p class="type-title truncate text-[12px] text-slate-100">{{ $event->title }}</p>
                                         <p class="type-label mt-0.5 text-[8px] text-slate-500">{{ $event->date->format('d M') }} - {{ $event->eventType->name }}</p>
                                     </a>
@@ -434,7 +436,7 @@
                             </p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            @if ($selectedEvent?->is_active)
+                            @if ($selectedEvent && $sessionActiveEventId === $selectedEvent->id)
                                 <span class="type-label border border-emerald-400/60 bg-emerald-500/10 px-2.5 py-1 text-[10px] text-emerald-100">Active Event</span>
                             @elseif ($selectedEvent && in_array($selectedEvent->status, ['upcoming', 'finished'], true))
                                 <form action="{{ route('events.activate', $selectedEvent) }}" method="POST">
@@ -443,6 +445,17 @@
                                     <input type="hidden" name="dashboard_panel" value="events">
                                     <input type="hidden" name="dashboard_event_id" value="{{ $selectedEvent->id }}">
                                     <button class="type-label border border-emerald-500/60 bg-emerald-500/10 px-2.5 py-1 text-[10px] text-emerald-100 transition hover:bg-emerald-500/20">Set Active</button>
+                                </form>
+                            @endif
+                            @if ($selectedEvent && in_array($selectedEvent->status, ['upcoming', 'finished'], true))
+                                <form action="{{ route('events.live.toggle', $selectedEvent) }}" method="POST">
+                                    @csrf
+                                    <input type="hidden" name="dashboard_redirect" value="1">
+                                    <input type="hidden" name="dashboard_panel" value="events">
+                                    <input type="hidden" name="dashboard_event_id" value="{{ $selectedEvent->id }}">
+                                    <button class="type-label border {{ $selectedEvent->is_active ? 'border-cyan-400/60 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20' : 'border-fuchsia-500/60 text-fuchsia-100 hover:bg-fuchsia-500/10' }} px-2.5 py-1 text-[10px] transition">
+                                        {{ $selectedEvent->is_active ? 'Stop Live' : 'Go Live' }}
+                                    </button>
                                 </form>
                             @endif
                             <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label border border-slate-700 px-2.5 py-1 text-[10px] text-slate-100 transition hover:border-amber-400 hover:text-amber-200">

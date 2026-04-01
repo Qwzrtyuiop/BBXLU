@@ -71,23 +71,36 @@ class EventController extends Controller
                 ]);
         }
 
-        if ($event->is_active) {
+        $currentSessionActiveEventId = (int) $request->session()->get('dashboard_active_event_id', 0);
+
+        if ($currentSessionActiveEventId === $event->id) {
             return $this->redirectTarget($request, 'events.edit', [$event], $event)
-                ->with('status', 'This event is already active.');
+                ->with('status', 'This event is already active in your admin session.');
         }
 
-        DB::transaction(function () use ($event): void {
-            Event::query()
-                ->where('is_active', true)
-                ->update(['is_active' => false]);
-
-            $event->forceFill([
-                'is_active' => true,
-            ])->save();
-        });
+        $request->session()->put('dashboard_active_event_id', $event->id);
 
         return $this->redirectTarget($request, 'events.edit', [$event], $event)
-            ->with('status', "{$event->title} is now the active event.");
+            ->with('status', "{$event->title} is now active in your admin session.");
+    }
+
+    public function toggleLive(Request $request, Event $event): RedirectResponse
+    {
+        if (! in_array($event->status, ['upcoming', 'finished'], true)) {
+            return $this->redirectTarget($request, 'events.edit', [$event], $event)
+                ->withErrors([
+                    'live_event' => 'Only upcoming or finished events can be toggled live.',
+                ]);
+        }
+
+        $event->forceFill([
+            'is_active' => ! $event->is_active,
+        ])->save();
+
+        return $this->redirectTarget($request, 'events.edit', [$event], $event)
+            ->with('status', $event->is_active
+                ? "{$event->title} is now public live."
+                : "{$event->title} is no longer public live.");
     }
 
     public function destroy(Request $request, Event $event): RedirectResponse

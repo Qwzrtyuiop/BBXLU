@@ -90,8 +90,11 @@
 
                     <div class="flex flex-wrap gap-1.5">
                         <span class="border border-slate-700 px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-slate-200">{{ $event->status }}</span>
-                        @if ($event->is_active)
+                        @if (($dashboardSessionActiveEventId ?? null) === $event->id)
                             <span class="border border-emerald-500/50 bg-emerald-500/10 px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-emerald-100">Active</span>
+                        @endif
+                        @if ($event->is_active)
+                            <span class="border border-cyan-400/50 bg-cyan-500/10 px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-cyan-100">Live</span>
                         @endif
                         @if ($event->is_lock_deck)
                             <span class="border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.14em] text-amber-100">Lock Deck</span>
