@@ -16,6 +16,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call([
+            EventTypeSeeder::class,
+            AwardSeeder::class,
+            StadiumSideSeeder::class,
+        ]);
+
         User::query()->updateOrCreate([
             'nickname' => 'test-admin',
         ], [

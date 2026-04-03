@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -14,12 +13,6 @@ return new class extends Migration
             $table->string('code')->unique();
             $table->timestamps();
         });
-
-        DB::table('stadium_sides')->insert([
-            ['code' => 'X', 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'B', 'created_at' => now(), 'updated_at' => now()],
-            ['code' => 'Other', 'created_at' => now(), 'updated_at' => now()],
-        ]);
 
         Schema::table('matches', function (Blueprint $table) {
             $table->foreignId('player1_stadium_side_id')

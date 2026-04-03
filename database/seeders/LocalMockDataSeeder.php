@@ -17,9 +17,85 @@ class LocalMockDataSeeder extends Seeder
         'close' => [['W', 'spin'], ['L', 'burst'], ['W', 'spin'], ['L', 'spin'], ['W', 'burst']],
         'wide' => [['W', 'burst'], ['L', 'spin'], ['W', 'spin'], ['W', 'burst']],
         'grind' => [['L', 'spin'], ['W', 'burst'], ['L', 'spin'], ['W', 'spin'], ['W', 'spin']],
+        'marathon' => [
+            ['W', 'spin'],
+            ['L', 'spin'],
+            ['W', 'burst'],
+            ['L', 'over'],
+            ['W', 'spin'],
+            ['L', 'spin'],
+            ['W', 'burst'],
+            ['L', 'spin'],
+            ['W', 'spin'],
+        ],
+    ];
+
+    private const SWISS_TEMPLATES = [
+        'alpha' => [
+            'swiss' => [
+                [[1, 8, 1, 'wide'], [2, 7, 1, 'steady'], [3, 6, 1, 'close'], [4, 5, 1, 'grind']],
+                [[1, 4, 1, 'sweep'], [2, 3, 1, 'steady'], [5, 8, 1, 'steady'], [6, 7, 1, 'close']],
+                [[1, 2, 1, 'close'], [3, 4, 1, 'steady'], [5, 6, 1, 'steady'], [7, 8, 1, 'wide']],
+            ],
+            'elim' => [
+                [[1, 5, 1, 'steady'], [2, 3, 1, 'close']],
+                [[1, 2, 1, 'marathon']],
+            ],
+            'placements' => [1 => 1, 2 => 2, 3 => 3, 4 => 5],
+            'awards' => ['Swiss King' => 1, 'Bird King' => 8, 'Swiss Champ' => 1],
+            'swiss_king' => 1,
+            'bird_king' => 8,
+        ],
+        'beta' => [
+            'swiss' => [
+                [[1, 8, 1, 'sweep'], [2, 7, 1, 'steady'], [3, 6, 1, 'close'], [4, 5, 2, 'grind']],
+                [[1, 5, 1, 'steady'], [2, 3, 1, 'close'], [4, 8, 1, 'steady'], [6, 7, 1, 'wide']],
+                [[1, 2, 1, 'close'], [3, 5, 2, 'steady'], [4, 6, 1, 'grind'], [7, 8, 1, 'wide']],
+            ],
+            'elim' => [
+                [[1, 5, 2, 'steady'], [2, 4, 1, 'close']],
+                [[5, 2, 1, 'marathon']],
+            ],
+            'placements' => [1 => 5, 2 => 2, 3 => 1, 4 => 4],
+            'awards' => ['Swiss King' => 1, 'Bird King' => 8],
+            'swiss_king' => 1,
+            'bird_king' => 8,
+        ],
+        'gamma' => [
+            'swiss' => [
+                [[1, 8, 1, 'wide'], [2, 7, 1, 'steady'], [3, 6, 1, 'close'], [4, 5, 2, 'grind']],
+                [[1, 4, 1, 'sweep'], [2, 3, 1, 'steady'], [5, 8, 1, 'close'], [6, 7, 1, 'wide']],
+                [[1, 2, 1, 'close'], [3, 4, 1, 'steady'], [5, 6, 1, 'grind'], [7, 8, 1, 'wide']],
+            ],
+            'elim' => [
+                [[1, 4, 1, 'steady'], [2, 3, 1, 'close']],
+                [[1, 2, 1, 'marathon']],
+            ],
+            'placements' => [1 => 1, 2 => 2, 3 => 3, 4 => 4],
+            'awards' => ['Swiss King' => 1, 'Bird King' => 8, 'Swiss Champ' => 1],
+            'swiss_king' => 1,
+            'bird_king' => 8,
+        ],
+        'delta' => [
+            'swiss' => [
+                [[1, 8, 2, 'wide'], [2, 7, 1, 'steady'], [3, 6, 2, 'close'], [4, 5, 1, 'grind']],
+                [[2, 5, 1, 'sweep'], [4, 8, 2, 'steady'], [1, 6, 1, 'close'], [3, 7, 2, 'wide']],
+                [[2, 8, 2, 'close'], [5, 6, 1, 'steady'], [1, 3, 2, 'grind'], [4, 7, 1, 'wide']],
+            ],
+            'elim' => [
+                [[8, 2, 1, 'steady'], [6, 5, 1, 'close']],
+                [[8, 6, 1, 'marathon']],
+            ],
+            'placements' => [1 => 8, 2 => 6, 3 => 2, 4 => 5],
+            'awards' => ['Swiss King' => 2, 'Bird King' => 8, 'Swiss Champ' => 8],
+            'swiss_king' => 2,
+            'bird_king' => 8,
+        ],
     ];
 
     private array $playerIds = [];
+
+    private array $stadiumSideIds = [];
 
     public function run(): void
     {
@@ -30,171 +106,269 @@ class LocalMockDataSeeder extends Seeder
         DB::transaction(function (): void {
             $now = now();
 
+            $this->call([
+                EventTypeSeeder::class,
+                AwardSeeder::class,
+                StadiumSideSeeder::class,
+            ]);
+
             $this->purgeMockData();
 
             $eventTypeIds = DB::table('event_types')->pluck('id', 'name')->all();
             $awardIds = DB::table('awards')->pluck('id', 'name')->all();
+            $this->stadiumSideIds = DB::table('stadium_sides')->pluck('id', 'code')->all();
+
             $adminId = $this->createAdmin($now);
 
-            $this->playerIds = $this->createClaimedPlayers(140, $now);
-            $this->createUnclaimedUsers(36, $now);
+            $this->playerIds = $this->createClaimedPlayers(120, $now);
+            $this->createUnclaimedUsers(24, $now);
 
-            $this->seedSwissEvent($adminId, $awardIds, $now, [
-                'title' => self::TAG.' Grand Prix Finals',
-                'description' => self::TAG.' Completed swiss event where the swiss king wins top cut.',
-                'event_type_id' => $eventTypeIds['GT'] ?? reset($eventTypeIds),
-                'date' => now()->subDay()->toDateString(),
-                'location' => self::TAG.' Arena Alpha',
-                'status' => 'finished',
-                'bracket_status' => 'completed',
-                'participants' => range(1, 8),
-                'decks' => range(1, 8),
-                'top_cut_size' => 4,
-                'swiss_king' => 1,
-                'bird_king' => 8,
-                'swiss' => [
-                    [[1, 8, 1, 'wide'], [2, 7, 1, 'steady'], [3, 6, 1, 'close'], [4, 5, 1, 'grind']],
-                    [[1, 4, 1, 'sweep'], [2, 3, 1, 'steady'], [5, 8, 1, 'steady'], [6, 7, 1, 'close']],
-                    [[1, 2, 1, 'close'], [3, 4, 1, 'steady'], [5, 6, 1, 'steady'], [7, 8, 1, 'wide']],
-                ],
-                'elim' => [
-                    [[1, 5, 1, 'steady'], [2, 3, 1, 'close']],
-                    [[1, 2, 1, 'steady']],
-                ],
-                'placements' => [1 => 1, 2 => 2, 3 => 3, 4 => 5],
-                'awards' => ['Swiss King' => 1, 'Bird King' => 8, 'Swiss Champ' => 1],
-            ]);
-
-            $this->seedSwissEvent($adminId, $awardIds, $now, [
-                'title' => self::TAG.' Upset Swiss Masters',
-                'description' => self::TAG.' Completed swiss event where the swiss king loses top cut.',
-                'event_type_id' => $eventTypeIds['GT'] ?? reset($eventTypeIds),
-                'date' => now()->subDays(2)->toDateString(),
-                'location' => self::TAG.' Arena Beta',
-                'status' => 'finished',
-                'bracket_status' => 'completed',
-                'participants' => range(9, 16),
-                'decks' => range(9, 16),
-                'top_cut_size' => 4,
-                'swiss_king' => 9,
-                'bird_king' => 16,
-                'swiss' => [
-                    [[9, 16, 1, 'sweep'], [10, 15, 1, 'steady'], [11, 14, 1, 'close'], [12, 13, 2, 'grind']],
-                    [[9, 13, 1, 'steady'], [10, 11, 1, 'close'], [12, 16, 1, 'steady'], [14, 15, 1, 'wide']],
-                    [[9, 10, 1, 'close'], [11, 13, 2, 'steady'], [12, 14, 1, 'grind'], [15, 16, 1, 'wide']],
-                ],
-                'elim' => [
-                    [[9, 13, 2, 'steady'], [10, 12, 1, 'close']],
-                    [[13, 10, 1, 'steady']],
-                ],
-                'placements' => [1 => 13, 2 => 10, 3 => 9, 4 => 12],
-                'awards' => ['Swiss King' => 9, 'Bird King' => 16],
-            ]);
-
-            $this->seedSwissEvent($adminId, $awardIds, $now, [
-                'title' => self::TAG.' Legacy Swiss Classic',
-                'description' => self::TAG.' Older swiss archive to deepen leaderboard and award history.',
-                'event_type_id' => $eventTypeIds['Casual'] ?? reset($eventTypeIds),
-                'date' => now()->subDays(6)->toDateString(),
-                'location' => self::TAG.' Archive Hall',
-                'status' => 'finished',
-                'bracket_status' => 'completed',
-                'participants' => [1, 2, 3, 4, 41, 42, 43, 44],
-                'decks' => [1, 2, 3, 4, 41, 42, 43, 44],
-                'top_cut_size' => 4,
-                'swiss_king' => 1,
-                'bird_king' => 44,
-                'swiss' => [
-                    [[1, 44, 1, 'wide'], [2, 43, 1, 'steady'], [3, 42, 1, 'close'], [4, 41, 2, 'grind']],
-                    [[1, 41, 1, 'sweep'], [2, 3, 1, 'steady'], [4, 44, 1, 'close'], [42, 43, 1, 'wide']],
-                    [[1, 2, 1, 'close'], [3, 41, 1, 'grind'], [4, 42, 1, 'steady'], [43, 44, 1, 'wide']],
-                ],
-                'elim' => [
-                    [[1, 4, 1, 'steady'], [2, 3, 1, 'close']],
-                    [[1, 2, 1, 'steady']],
-                ],
-                'placements' => [1 => 1, 2 => 2, 3 => 3, 4 => 4],
-                'awards' => ['Swiss King' => 1, 'Bird King' => 44, 'Swiss Champ' => 1],
-            ]);
-
-            $this->seedSingleElimEvent($adminId, $awardIds, $now, [
-                'title' => self::TAG.' Knockout Cup',
-                'description' => self::TAG.' Completed single elimination showcase event.',
-                'event_type_id' => $eventTypeIds['Others'] ?? reset($eventTypeIds),
-                'date' => now()->subDays(3)->toDateString(),
-                'location' => self::TAG.' Knockout Dome',
-                'status' => 'finished',
-                'bracket_status' => 'completed',
-                'participants' => range(17, 24),
-                'decks' => range(17, 24),
-                'rounds' => [
-                    [[17, 24, 1, 'sweep'], [18, 23, 1, 'steady'], [19, 22, 1, 'close'], [20, 21, 1, 'grind']],
-                    [[17, 20, 1, 'steady'], [18, 19, 1, 'close']],
-                    [[17, 18, 1, 'wide']],
-                ],
-                'placements' => [1 => 17, 2 => 18, 3 => 20, 4 => 19],
-                'awards' => ['Bird King' => 17],
-            ]);
-
-            $this->seedSwissEvent($adminId, [], $now, [
-                'title' => self::TAG.' Metro Open Live',
-                'description' => self::TAG.' Active swiss event for the workspace board and live score entry.',
-                'event_type_id' => $eventTypeIds['GT'] ?? reset($eventTypeIds),
-                'date' => now()->toDateString(),
-                'location' => self::TAG.' Main Stage',
-                'status' => 'upcoming',
-                'bracket_status' => 'in_progress',
-                'is_active' => true,
-                'participants' => range(25, 40),
-                'decks' => [],
-                'top_cut_size' => 8,
-                'swiss' => [
-                    [[25, 26, 1, 'steady'], [27, 28, 2, 'close'], [29, 30, 1, 'wide'], [31, 32, 2, 'grind'], [33, 34, 2, 'steady'], [35, 36, 1, 'sweep'], [37, 38, 2, 'wide'], [39, 40, 1, 'steady']],
-                    [[25, 28, 1, 'sweep'], [29, 32, 1, 'close'], [34, 35, 1, 'steady'], [38, 39, 2, 'grind'], [26, 27, 1, 'steady'], [30, 31, 2, 'close'], [33, 36, 2, 'wide'], [37, 40, 1, 'steady']],
-                    [[25, 29], [34, 40], [28, 35], [26, 32], [27, 39], [30, 38], [31, 36], [33, 37]],
-                ],
-            ]);
-
-            $this->seedSwissEvent($adminId, [], $now, [
-                'title' => self::TAG.' Road To Top Cut',
-                'description' => self::TAG.' Swiss rounds are complete and deck registration is waiting for top cut qualifiers.',
-                'event_type_id' => $eventTypeIds['GT'] ?? reset($eventTypeIds),
-                'date' => now()->addDay()->toDateString(),
-                'location' => self::TAG.' Qualifier Station',
-                'status' => 'upcoming',
-                'bracket_status' => 'in_progress',
-                'participants' => range(41, 48),
-                'decks' => [41, 42],
-                'top_cut_size' => 4,
-                'swiss_king' => 41,
-                'bird_king' => 48,
-                'swiss' => [
-                    [[41, 48, 1, 'sweep'], [42, 47, 1, 'steady'], [43, 46, 1, 'close'], [44, 45, 1, 'grind']],
-                    [[41, 44, 1, 'steady'], [42, 43, 1, 'close'], [45, 48, 1, 'steady'], [46, 47, 1, 'wide']],
-                    [[41, 42, 1, 'close'], [43, 44, 1, 'grind'], [45, 46, 1, 'steady'], [47, 48, 1, 'wide']],
-                ],
-            ]);
-
-            $this->seedSingleElimEvent($adminId, [], $now, [
-                'title' => self::TAG.' Locked Deck Clash',
-                'description' => self::TAG.' Single elimination event with locked decks already registered.',
-                'event_type_id' => $eventTypeIds['Casual'] ?? reset($eventTypeIds),
-                'date' => now()->addDays(2)->toDateString(),
-                'location' => self::TAG.' Lockdown Stage',
-                'status' => 'upcoming',
-                'bracket_status' => 'in_progress',
-                'is_lock_deck' => true,
-                'participants' => range(49, 56),
-                'decks' => range(49, 56),
-                'rounds' => [
-                    [[49, 56, 1, 'sweep'], [50, 55, 1, 'close'], [51, 54, 1, 'steady'], [52, 53, 1, 'grind']],
-                    [[49, 50], [51, 52]],
-                ],
-            ]);
-
-            $this->seedUpcomingDraftEvents($adminId, $eventTypeIds, $now);
-            $this->seedArchiveSingleEliminationEvents($adminId, $eventTypeIds, $awardIds, $now);
+            $this->seedFinishedSwissEvents($adminId, $eventTypeIds, $awardIds, $now);
+            $this->seedActiveSwissEvents($adminId, $eventTypeIds, $awardIds, $now);
+            $this->seedDraftSwissEvents($adminId, $eventTypeIds, $now);
         });
+    }
+
+    private function seedFinishedSwissEvents(int $adminId, array $eventTypeIds, array $awardIds, $now): void
+    {
+        $definitions = [
+            ['number' => 1, 'template' => 'alpha', 'event_type' => 'GT', 'players' => [17, 1, 2, 3, 4, 5, 6, 7], 'days_ago' => 14, 'is_lock_deck' => true],
+            ['number' => 2, 'template' => 'beta', 'event_type' => 'Casual', 'players' => [8, 2, 9, 10, 1, 11, 12, 13], 'days_ago' => 12],
+            ['number' => 3, 'template' => 'gamma', 'event_type' => 'Others', 'players' => [17, 18, 14, 15, 16, 19, 20, 21], 'days_ago' => 10],
+            ['number' => 4, 'template' => 'alpha', 'event_type' => 'GT', 'players' => [1, 17, 22, 23, 24, 25, 26, 27], 'days_ago' => 8],
+            ['number' => 5, 'template' => 'beta', 'event_type' => 'Casual', 'players' => [28, 3, 29, 30, 17, 31, 32, 33], 'days_ago' => 6, 'is_lock_deck' => true],
+            ['number' => 6, 'template' => 'delta', 'event_type' => 'GT', 'players' => [2, 34, 35, 36, 37, 38, 39, 40], 'days_ago' => 4],
+        ];
+
+        foreach ($definitions as $definition) {
+            $this->seedTemplateSwissEvent($adminId, $awardIds, $now, [
+                'number' => $definition['number'],
+                'template' => $definition['template'],
+                'event_type_id' => $this->eventTypeId($eventTypeIds, $definition['event_type']),
+                'participants' => $definition['players'],
+                'date' => $now->copy()->subDays($definition['days_ago'])->toDateString(),
+                'status' => 'finished',
+                'bracket_status' => 'completed',
+                'is_lock_deck' => $definition['is_lock_deck'] ?? false,
+            ]);
+        }
+    }
+
+    private function seedActiveSwissEvents(int $adminId, array $eventTypeIds, array $awardIds, $now): void
+    {
+        $this->seedSwissEvent($adminId, $awardIds, $now, $this->mockEventConfig(7, [
+            'event_type_id' => $this->eventTypeId($eventTypeIds, 'GT'),
+            'date' => $now->copy()->toDateString(),
+            'status' => 'upcoming',
+            'bracket_status' => 'in_progress',
+            'is_active' => true,
+            'participants' => range(41, 56),
+            'top_cut_size' => 8,
+            'swiss_rounds' => 4,
+            'swiss' => [
+                [[41, 42, 1, 'steady'], [43, 44, 2, 'close'], [45, 46, 1, 'wide'], [47, 48, 2, 'grind'], [49, 50, 2, 'steady'], [51, 52, 1, 'sweep'], [53, 54, 2, 'wide'], [55, 56, 1, 'steady']],
+                [[41, 44, 1, 'sweep'], [45, 48, 1, 'close'], [50, 51, 1, 'steady'], [54, 55, 2, 'grind'], [42, 43, 1, 'steady'], [46, 47, 2, 'close'], [49, 52, 2, 'wide'], [53, 56, 1, 'steady']],
+                [[41, 45], [50, 56], [44, 51], [42, 48], [43, 55], [46, 54], [47, 52], [49, 53]],
+            ],
+        ]));
+
+        $this->seedSwissEvent($adminId, $awardIds, $now, $this->mockEventConfig(8, [
+            'event_type_id' => $this->eventTypeId($eventTypeIds, 'Casual'),
+            'date' => $now->copy()->addDay()->toDateString(),
+            'status' => 'upcoming',
+            'bracket_status' => 'in_progress',
+            'is_active' => true,
+            'participants' => [17, 1, 57, 58, 59, 60, 61, 62],
+            'top_cut_size' => 4,
+            'swiss_rounds' => 3,
+            'swiss' => [
+                [[17, 62, 1, 'wide'], [1, 61, 1, 'steady'], [57, 60, 1, 'close'], [58, 59, 2, 'grind']],
+                [[17, 58], [1, 57], [59, 62], [60, 61]],
+            ],
+        ]));
+
+        $this->seedTemplateSwissEvent($adminId, [], $now, [
+            'number' => 9,
+            'template' => 'gamma',
+            'event_type_id' => $this->eventTypeId($eventTypeIds, 'Others'),
+            'participants' => [63, 64, 65, 66, 67, 68, 69, 70],
+            'date' => $now->copy()->addDays(2)->toDateString(),
+            'status' => 'upcoming',
+            'bracket_status' => 'in_progress',
+            'include_elim' => false,
+            'include_placements' => false,
+            'include_awards' => false,
+            'is_lock_deck' => true,
+        ]);
+    }
+
+    private function seedDraftSwissEvents(int $adminId, array $eventTypeIds, $now): void
+    {
+        $definitions = [
+            ['number' => 10, 'event_type' => 'GT', 'participants' => range(71, 78), 'days_ahead' => 3, 'top_cut_size' => 4],
+            ['number' => 11, 'event_type' => 'Casual', 'participants' => range(79, 86), 'days_ahead' => 4, 'top_cut_size' => 4, 'is_lock_deck' => true],
+            ['number' => 12, 'event_type' => 'Others', 'participants' => range(87, 94), 'days_ahead' => 5, 'top_cut_size' => 8],
+            ['number' => 13, 'event_type' => 'GT', 'participants' => range(95, 102), 'days_ahead' => 6, 'top_cut_size' => 4],
+        ];
+
+        foreach ($definitions as $definition) {
+            $this->seedSwissEvent($adminId, [], $now, $this->mockEventConfig($definition['number'], [
+                'event_type_id' => $this->eventTypeId($eventTypeIds, $definition['event_type']),
+                'date' => $now->copy()->addDays($definition['days_ahead'])->toDateString(),
+                'status' => 'upcoming',
+                'bracket_status' => 'draft',
+                'participants' => $definition['participants'],
+                'top_cut_size' => $definition['top_cut_size'],
+                'swiss_rounds' => 4,
+                'is_lock_deck' => $definition['is_lock_deck'] ?? false,
+                'swiss' => [],
+                'elim' => [],
+                'placements' => [],
+                'awards' => [],
+            ]));
+        }
+    }
+
+    private function seedTemplateSwissEvent(int $adminId, array $awardIds, $now, array $definition): void
+    {
+        $template = self::SWISS_TEMPLATES[$definition['template']];
+        $slotMap = $this->slotPlayerMap($definition['participants']);
+
+        $config = $this->mockEventConfig($definition['number'], [
+            'event_type_id' => $definition['event_type_id'],
+            'date' => $definition['date'],
+            'status' => $definition['status'],
+            'bracket_status' => $definition['bracket_status'],
+            'participants' => array_values($slotMap),
+            'top_cut_size' => $definition['top_cut_size'] ?? 4,
+            'swiss_rounds' => $definition['swiss_rounds'] ?? count($template['swiss']),
+            'swiss' => $this->mapTemplateRounds($template['swiss'], $slotMap),
+            'elim' => ($definition['include_elim'] ?? true)
+                ? $this->mapTemplateRounds($template['elim'], $slotMap)
+                : [],
+            'placements' => ($definition['include_placements'] ?? true)
+                ? $this->mapTemplatePlacements($template['placements'], $slotMap)
+                : [],
+            'awards' => ($definition['include_awards'] ?? true)
+                ? $this->mapTemplateAwards($template['awards'], $slotMap)
+                : [],
+            'swiss_king' => $slotMap[$template['swiss_king']] ?? null,
+            'bird_king' => $slotMap[$template['bird_king']] ?? null,
+            'is_lock_deck' => $definition['is_lock_deck'] ?? false,
+            'is_active' => $definition['is_active'] ?? false,
+        ]);
+
+        $this->seedSwissEvent($adminId, $awardIds, $now, $config);
+    }
+
+    private function mockEventConfig(int $eventNumber, array $overrides): array
+    {
+        $base = [
+            'title' => $this->eventTitle($eventNumber),
+            'description' => $this->eventDescription($eventNumber),
+            'challonge_url' => $this->eventLink($eventNumber),
+            'challonge_link' => $this->eventLink($eventNumber),
+            'location' => $this->eventLocation($eventNumber),
+            'bracket_type' => 'swiss_single_elim',
+            'match_format' => 7,
+            'status' => 'upcoming',
+            'bracket_status' => 'draft',
+            'is_active' => false,
+            'is_lock_deck' => false,
+            'swiss_rounds' => 3,
+            'top_cut_size' => 4,
+            'participants' => [],
+            'swiss' => [],
+            'elim' => [],
+            'placements' => [],
+            'awards' => [],
+            'swiss_king' => null,
+            'bird_king' => null,
+        ];
+
+        return array_merge($base, $overrides);
+    }
+
+    private function eventTypeId(array $eventTypeIds, string $name): int
+    {
+        return (int) ($eventTypeIds[$name] ?? reset($eventTypeIds));
+    }
+
+    private function slotPlayerMap(array $playerNumbers): array
+    {
+        $slotMap = [];
+
+        foreach (array_values($playerNumbers) as $index => $playerNumber) {
+            $slotMap[$index + 1] = $playerNumber;
+        }
+
+        return $slotMap;
+    }
+
+    private function mapTemplateRounds(array $rounds, array $slotMap): array
+    {
+        return array_map(function (array $matches) use ($slotMap): array {
+            return array_map(function (array $match) use ($slotMap): array {
+                [$leftSlot, $rightSlot, $winnerSlot, $patternName] = array_pad($match, 4, null);
+
+                $mapped = [
+                    $slotMap[$leftSlot],
+                    $slotMap[$rightSlot],
+                ];
+
+                if ($winnerSlot !== null) {
+                    $mapped[] = $winnerSlot;
+                }
+
+                if ($patternName !== null) {
+                    $mapped[] = $patternName;
+                }
+
+                return $mapped;
+            }, $matches);
+        }, $rounds);
+    }
+
+    private function mapTemplatePlacements(array $placements, array $slotMap): array
+    {
+        $mapped = [];
+
+        foreach ($placements as $placement => $slot) {
+            $mapped[$placement] = $slotMap[$slot];
+        }
+
+        return $mapped;
+    }
+
+    private function mapTemplateAwards(array $awards, array $slotMap): array
+    {
+        $mapped = [];
+
+        foreach ($awards as $awardName => $slot) {
+            $mapped[$awardName] = $slotMap[$slot];
+        }
+
+        return $mapped;
+    }
+
+    private function eventTitle(int $eventNumber): string
+    {
+        return self::TAG.' Event '.str_pad((string) $eventNumber, 2, '0', STR_PAD_LEFT);
+    }
+
+    private function eventDescription(int $eventNumber): string
+    {
+        return self::TAG.' Placeholder description for Event '.str_pad((string) $eventNumber, 2, '0', STR_PAD_LEFT).'.';
+    }
+
+    private function eventLocation(int $eventNumber): string
+    {
+        return self::TAG.' Venue '.str_pad((string) $eventNumber, 2, '0', STR_PAD_LEFT);
+    }
+
+    private function eventLink(int $eventNumber): string
+    {
+        return 'https://challonge.com/mock_event_'.str_pad((string) $eventNumber, 2, '0', STR_PAD_LEFT);
     }
 
     private function createAdmin($now): int
@@ -262,17 +436,19 @@ class LocalMockDataSeeder extends Seeder
         $eventId = $this->createEvent([
             'title' => $config['title'],
             'description' => $config['description'],
+            'challonge_url' => $config['challonge_url'],
+            'challonge_link' => $config['challonge_link'],
             'event_type_id' => $config['event_type_id'],
-            'bracket_type' => 'swiss_single_elim',
-            'swiss_rounds' => count($config['swiss']),
-            'top_cut_size' => $config['top_cut_size'] ?? 4,
-            'match_format' => 7,
+            'bracket_type' => $config['bracket_type'],
+            'swiss_rounds' => $config['swiss_rounds'] ?? count($config['swiss']),
+            'top_cut_size' => $config['top_cut_size'],
+            'match_format' => $config['match_format'],
             'date' => $config['date'],
             'location' => $config['location'],
             'status' => $config['status'],
             'bracket_status' => $config['bracket_status'],
-            'is_lock_deck' => false,
-            'is_active' => $config['is_active'] ?? false,
+            'is_lock_deck' => $config['is_lock_deck'],
+            'is_active' => $config['is_active'],
             'swiss_king_player_id' => isset($config['swiss_king']) ? $this->playerIds[$config['swiss_king']] : null,
             'bird_king_player_id' => isset($config['bird_king']) ? $this->playerIds[$config['bird_king']] : null,
             'created_by' => $adminId,
@@ -280,7 +456,7 @@ class LocalMockDataSeeder extends Seeder
             'updated_at' => $now,
         ]);
 
-        $this->attachParticipants($eventId, $config['participants'], $config['decks'] ?? [], $now);
+        $this->attachParticipants($eventId, $config['participants'], $now);
 
         foreach ($config['swiss'] as $roundIndex => $matches) {
             $roundNumber = $roundIndex + 1;
@@ -296,70 +472,34 @@ class LocalMockDataSeeder extends Seeder
             $this->createConfiguredMatches($eventId, $roundId, 'swiss', $roundNumber, $matches, $now);
         }
 
-        foreach ($config['elim'] ?? [] as $roundIndex => $matches) {
+        $previousEliminationMatchIds = [];
+
+        foreach ($config['elim'] as $roundIndex => $matches) {
             $roundNumber = $roundIndex + 1;
-            $roundId = $this->createRound(
-                $eventId,
-                'single_elim',
-                $roundNumber,
-                $roundIndex === 0 ? 'Top Cut Round 1' : ($roundIndex === 1 ? 'Top Cut Final' : 'Top Cut Round '.($roundNumber + 1)),
-                $this->roundStatus($matches),
-                $now
-            );
-
-            $this->createConfiguredMatches($eventId, $roundId, 'single_elim', $roundNumber, $matches, $now);
-        }
-
-        if (! empty($config['placements'])) {
-            $this->createPlacements($eventId, $config['placements']);
-        }
-
-        if (! empty($config['awards']) && $awardIds !== []) {
-            $this->createAwards($eventId, $awardIds, $config['awards']);
-        }
-    }
-
-    private function seedSingleElimEvent(int $adminId, array $awardIds, $now, array $config): void
-    {
-        $eventId = $this->createEvent([
-            'title' => $config['title'],
-            'description' => $config['description'],
-            'event_type_id' => $config['event_type_id'],
-            'bracket_type' => 'single_elim',
-            'swiss_rounds' => null,
-            'top_cut_size' => null,
-            'match_format' => 7,
-            'date' => $config['date'],
-            'location' => $config['location'],
-            'status' => $config['status'],
-            'bracket_status' => $config['bracket_status'],
-            'is_lock_deck' => $config['is_lock_deck'] ?? false,
-            'is_active' => $config['is_active'] ?? false,
-            'created_by' => $adminId,
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-
-        $this->attachParticipants($eventId, $config['participants'], $config['decks'] ?? [], $now);
-
-        foreach ($config['rounds'] as $roundIndex => $matches) {
-            $roundNumber = $roundIndex + 1;
-            $label = match ($roundNumber) {
-                1 => 'Elimination Round 1',
-                2 => count($config['rounds']) === 2 ? 'Elimination Final' : 'Elimination Round 2',
-                default => 'Elimination Final',
+            $roundLabel = match ($roundNumber) {
+                1 => 'Top Cut Round 1',
+                2 => count($config['elim']) === 2 ? 'Top Cut Final' : 'Top Cut Round 2',
+                default => 'Top Cut Round '.$roundNumber,
             };
 
             $roundId = $this->createRound(
                 $eventId,
                 'single_elim',
                 $roundNumber,
-                $label,
+                $roundLabel,
                 $this->roundStatus($matches),
                 $now
             );
 
-            $this->createConfiguredMatches($eventId, $roundId, 'single_elim', $roundNumber, $matches, $now);
+            $previousEliminationMatchIds = $this->createConfiguredMatches(
+                $eventId,
+                $roundId,
+                'single_elim',
+                $roundNumber,
+                $matches,
+                $now,
+                $previousEliminationMatchIds
+            );
         }
 
         if (! empty($config['placements'])) {
@@ -371,101 +511,18 @@ class LocalMockDataSeeder extends Seeder
         }
     }
 
-    private function seedUpcomingDraftEvents(int $adminId, array $eventTypeIds, $now): void
-    {
-        $eventTypes = array_values($eventTypeIds);
-
-        for ($index = 1; $index <= 8; $index++) {
-            $usesSwiss = $index % 2 === 1;
-            $eventId = $this->createEvent([
-                'title' => self::TAG.' Upcoming Event '.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
-                'description' => self::TAG.' Draft event shell for admin flow checks and denser mock coverage.',
-                'event_type_id' => $eventTypes[($index - 1) % count($eventTypes)],
-                'bracket_type' => $usesSwiss ? 'swiss_single_elim' : 'single_elim',
-                'swiss_rounds' => $usesSwiss ? 4 : null,
-                'top_cut_size' => $usesSwiss ? 8 : null,
-                'match_format' => 7,
-                'date' => now()->addDays($index + 2)->toDateString(),
-                'location' => self::TAG.' Venue '.str_pad((string) $index, 2, '0', STR_PAD_LEFT),
-                'status' => 'upcoming',
-                'bracket_status' => 'draft',
-                'is_lock_deck' => $index % 3 === 0,
-                'is_active' => false,
-                'created_by' => $adminId,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ]);
-
-            if ($index > 4) {
-                continue;
-            }
-
-            $start = 57 + (($index - 1) * 8);
-            $participants = range($start, $start + 7);
-            $decks = $index % 3 === 0 ? $participants : [];
-
-            $this->attachParticipants($eventId, $participants, $decks, $now);
-        }
-    }
-
-    private function seedArchiveSingleEliminationEvents(int $adminId, array $eventTypeIds, array $awardIds, $now): void
-    {
-        $archiveConfigs = [
-            ['title' => self::TAG.' Archive Knockout 01', 'event_type_id' => $eventTypeIds['Casual'] ?? reset($eventTypeIds), 'participants' => [17, 57, 58, 59], 'placements' => [1 => 17, 2 => 57, 3 => 59, 4 => 58], 'date' => now()->subDays(4)->toDateString()],
-            ['title' => self::TAG.' Archive Knockout 02', 'event_type_id' => $eventTypeIds['Others'] ?? reset($eventTypeIds), 'participants' => [17, 60, 61, 62], 'placements' => [1 => 17, 2 => 60, 3 => 62, 4 => 61], 'date' => now()->subDays(5)->toDateString()],
-            ['title' => self::TAG.' Archive Knockout 03', 'event_type_id' => $eventTypeIds['GT'] ?? reset($eventTypeIds), 'participants' => [18, 63, 64, 65], 'placements' => [1 => 18, 2 => 63, 3 => 65, 4 => 64], 'date' => now()->subDays(7)->toDateString()],
-            ['title' => self::TAG.' Archive Knockout 04', 'event_type_id' => $eventTypeIds['Casual'] ?? reset($eventTypeIds), 'participants' => [17, 66, 67, 68], 'placements' => [1 => 17, 2 => 66, 3 => 68, 4 => 67], 'date' => now()->subDays(8)->toDateString()],
-            ['title' => self::TAG.' Archive Knockout 05', 'event_type_id' => $eventTypeIds['Others'] ?? reset($eventTypeIds), 'participants' => [20, 69, 70, 71], 'placements' => [1 => 20, 2 => 69, 3 => 71, 4 => 70], 'date' => now()->subDays(9)->toDateString()],
-            ['title' => self::TAG.' Archive Knockout 06', 'event_type_id' => $eventTypeIds['GT'] ?? reset($eventTypeIds), 'participants' => [17, 72, 73, 74], 'placements' => [1 => 17, 2 => 72, 3 => 74, 4 => 73], 'date' => now()->subDays(10)->toDateString()],
-        ];
-
-        foreach ($archiveConfigs as $config) {
-            $champion = $config['placements'][1];
-            $runnerUp = $config['placements'][2];
-            $semiLoserOne = $config['placements'][3];
-            $semiLoserTwo = $config['placements'][4];
-
-            $this->seedSingleElimEvent($adminId, $awardIds, $now, [
-                'title' => $config['title'],
-                'description' => self::TAG.' Archived micro bracket for richer history and rankings.',
-                'event_type_id' => $config['event_type_id'],
-                'date' => $config['date'],
-                'location' => self::TAG.' Archive Wing',
-                'status' => 'finished',
-                'bracket_status' => 'completed',
-                'participants' => $config['participants'],
-                'decks' => $config['participants'],
-                'rounds' => [
-                    [[$champion, $semiLoserOne, 1, 'steady'], [$runnerUp, $semiLoserTwo, 1, 'close']],
-                    [[$champion, $runnerUp, 1, 'wide']],
-                ],
-                'placements' => $config['placements'],
-                'awards' => ['Bird King' => $champion],
-            ]);
-        }
-    }
-
     private function createEvent(array $attributes): int
     {
-        return (int) DB::table('events')->insertGetId(array_merge([
-            'challonge_url' => null,
-            'challonge_link' => null,
-        ], $attributes));
+        return (int) DB::table('events')->insertGetId($attributes);
     }
 
-    private function attachParticipants(int $eventId, array $playerNumbers, array $deckNumbers, $now): void
+    private function attachParticipants(int $eventId, array $playerNumbers, $now): void
     {
         foreach ($playerNumbers as $playerNumber) {
             DB::table('event_participants')->insert(array_merge([
                 'event_id' => $eventId,
                 'player_id' => $this->playerIds[$playerNumber],
-            ], in_array($playerNumber, $deckNumbers, true) ? $this->deckPayload($playerNumber, $now) : [
-                'deck_name' => null,
-                'deck_bey1' => null,
-                'deck_bey2' => null,
-                'deck_bey3' => null,
-                'deck_registered_at' => null,
-            ]));
+            ], $this->deckPayload($playerNumber, $now)));
         }
     }
 
@@ -482,19 +539,40 @@ class LocalMockDataSeeder extends Seeder
         ]);
     }
 
-    private function createConfiguredMatches(int $eventId, int $roundId, string $stage, int $roundNumber, array $matches, $now): void
-    {
+    private function createConfiguredMatches(
+        int $eventId,
+        int $roundId,
+        string $stage,
+        int $roundNumber,
+        array $matches,
+        $now,
+        array $sourceMatchIds = []
+    ): array {
+        $createdMatchIds = [];
+
         foreach ($matches as $matchIndex => $match) {
             [$left, $right, $winnerSlot, $patternName] = array_pad($match, 4, null);
             $battles = $winnerSlot ? $this->battlePattern($patternName ?? 'steady', $winnerSlot) : [];
             $battleColumns = $this->battleColumns($battles);
+            [$player1SideId, $player2SideId] = $this->stadiumSideIdsForMatch($roundNumber, $matchIndex + 1, $right !== null);
 
-            DB::table('matches')->insert(array_merge([
+            $sourceMatch1Id = null;
+            $sourceMatch2Id = null;
+
+            if ($stage === 'single_elim' && $roundNumber > 1) {
+                $sourceOffset = $matchIndex * 2;
+                $sourceMatch1Id = $sourceMatchIds[$sourceOffset] ?? null;
+                $sourceMatch2Id = $sourceMatchIds[$sourceOffset + 1] ?? null;
+            }
+
+            $createdMatchIds[] = (int) DB::table('matches')->insertGetId(array_merge([
                 'event_id' => $eventId,
                 'event_round_id' => $roundId,
                 'stage' => $stage,
                 'player1_id' => $this->playerIds[$left],
-                'player2_id' => $this->playerIds[$right],
+                'player1_stadium_side_id' => $player1SideId,
+                'player2_id' => $right !== null ? $this->playerIds[$right] : null,
+                'player2_stadium_side_id' => $player2SideId,
                 'player1_score' => $battleColumns['player1_score'],
                 'player2_score' => $battleColumns['player2_score'],
                 'winner_id' => $winnerSlot ? $this->playerIds[$winnerSlot === 1 ? $left : $right] : null,
@@ -502,17 +580,36 @@ class LocalMockDataSeeder extends Seeder
                 'match_number' => $matchIndex + 1,
                 'status' => $winnerSlot ? 'completed' : 'pending',
                 'is_bye' => false,
-                'source_match1_id' => null,
-                'source_match2_id' => null,
-                'player1_bey1' => $stage === 'single_elim' ? $this->deckParts($left)['deck_bey1'] : null,
-                'player1_bey2' => $stage === 'single_elim' ? $this->deckParts($left)['deck_bey2'] : null,
-                'player1_bey3' => $stage === 'single_elim' ? $this->deckParts($left)['deck_bey3'] : null,
-                'player2_bey1' => $stage === 'single_elim' ? $this->deckParts($right)['deck_bey1'] : null,
-                'player2_bey2' => $stage === 'single_elim' ? $this->deckParts($right)['deck_bey2'] : null,
-                'player2_bey3' => $stage === 'single_elim' ? $this->deckParts($right)['deck_bey3'] : null,
+                'source_match1_id' => $sourceMatch1Id,
+                'source_match2_id' => $sourceMatch2Id,
+                'player1_bey1' => $this->deckParts($left)['deck_bey1'],
+                'player1_bey2' => $this->deckParts($left)['deck_bey2'],
+                'player1_bey3' => $this->deckParts($left)['deck_bey3'],
+                'player2_bey1' => $right !== null ? $this->deckParts($right)['deck_bey1'] : null,
+                'player2_bey2' => $right !== null ? $this->deckParts($right)['deck_bey2'] : null,
+                'player2_bey3' => $right !== null ? $this->deckParts($right)['deck_bey3'] : null,
                 'created_at' => $now,
             ], $battleColumns['results'], $battleColumns['types']));
         }
+
+        return $createdMatchIds;
+    }
+
+    private function stadiumSideIdsForMatch(int $roundNumber, int $matchNumber, bool $hasOpponent): array
+    {
+        $patterns = [
+            ['X', 'B'],
+            ['B', 'X'],
+            ['X', 'Other'],
+            ['Other', 'B'],
+        ];
+
+        $pattern = $patterns[($roundNumber + $matchNumber - 2) % count($patterns)];
+
+        return [
+            $this->stadiumSideIds[$pattern[0]] ?? null,
+            $hasOpponent ? ($this->stadiumSideIds[$pattern[1]] ?? null) : null,
+        ];
     }
 
     private function createPlacements(int $eventId, array $placements): void
@@ -569,6 +666,7 @@ class LocalMockDataSeeder extends Seeder
 
     private function battlePattern(string $patternName, int $winnerSlot): array
     {
+        $pattern = self::PATTERNS[$patternName] ?? self::PATTERNS['steady'];
         $loserSlot = $winnerSlot === 1 ? 2 : 1;
 
         return array_map(function (array $battle) use ($winnerSlot, $loserSlot): array {
@@ -576,7 +674,7 @@ class LocalMockDataSeeder extends Seeder
                 'winner' => $battle[0] === 'W' ? $winnerSlot : $loserSlot,
                 'type' => $battle[1],
             ];
-        }, self::PATTERNS[$patternName]);
+        }, $pattern);
     }
 
     private function battleColumns(array $battles): array
@@ -586,7 +684,7 @@ class LocalMockDataSeeder extends Seeder
         $player1Score = 0;
         $player2Score = 0;
 
-        foreach (range(1, 7) as $slot) {
+        foreach (range(1, 13) as $slot) {
             $battle = $battles[$slot - 1] ?? null;
             $results["result_{$slot}"] = $battle['winner'] ?? null;
             $types["result_type_{$slot}"] = $battle['type'] ?? null;
@@ -628,14 +726,6 @@ class LocalMockDataSeeder extends Seeder
             DB::table('event_participants')->whereIn('event_id', $mockEventIds)->delete();
             DB::table('events')->whereIn('id', $mockEventIds)->delete();
         }
-
-        $mockAwardIds = DB::table('awards')->where('name', 'like', self::TAG.'%')->pluck('id');
-        if ($mockAwardIds->isNotEmpty()) {
-            DB::table('event_awards')->whereIn('award_id', $mockAwardIds)->delete();
-            DB::table('awards')->whereIn('id', $mockAwardIds)->delete();
-        }
-
-        DB::table('event_types')->where('name', 'like', self::TAG.'%')->delete();
 
         $mockUserIds = DB::table('users')->where('nickname', 'like', self::TAG.'%')->pluck('id');
         if ($mockUserIds->isNotEmpty()) {

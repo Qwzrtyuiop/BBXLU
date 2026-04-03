@@ -180,7 +180,7 @@
                     @endif
                 </div>
 
-                <div class="mt-3 space-y-2" data-profile-match-list>
+                <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1" data-profile-match-list>
                     @forelse ($recentMatches as $match)
                         @php
                             $isPlayerOne = $match->player1_id === $profilePlayer?->id;

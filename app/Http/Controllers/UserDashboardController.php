@@ -86,7 +86,7 @@ class UserDashboardController extends Controller
             'upcomingEvents' => $upcomingEvents,
             'recentResults' => $recentResults,
             'recentAwards' => $recentAwards,
-            'recentMatches' => $recentMatches->take(8),
+            'recentMatches' => $recentMatches,
             'joinedEvents' => $joinedEvents,
             'publicProfileUrl' => $profilePlayer ? route('user.dashboard.profile', $profilePlayer) : null,
             'selfDashboardUrl' => route('user.dashboard'),

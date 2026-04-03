@@ -646,30 +646,34 @@
                     </div>
                     <div class="flex min-h-[8.5rem] flex-col justify-between border border-cyan-400/25 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-3 xl:col-span-2 xl:row-span-2 xl:min-h-0">
                         <div class="flex flex-1 flex-col items-center justify-center text-center">
-                            <p class="type-label text-[9px] text-slate-500">Most Common Finish</p>
-                            <p class="type-headline mt-3 break-words text-3xl leading-none text-cyan-100 xl:text-[2.15rem]">{{ $metaStats['most_common_finish'] ? \Illuminate\Support\Str::headline($metaStats['most_common_finish']) : '-' }}</p>
+                            <p class="type-label text-[9px] text-slate-500">Best Finish</p>
+                            <p class="type-headline mt-3 break-words text-3xl leading-none text-cyan-100 xl:text-[2.15rem]">{{ $metaStats['best_finish'] ? \Illuminate\Support\Str::headline($metaStats['best_finish']) : '-' }}</p>
                         </div>
                         <div class="mt-4 border-t border-cyan-400/15 pt-3 text-center">
-                            <p class="type-label text-[9px] text-cyan-200/80">Occurrences</p>
-                            <p class="type-stat mt-2 text-3xl leading-none text-amber-100">{{ $metaStats['most_common_finish_count'] > 0 ? $metaStats['most_common_finish_count'] : '--' }}</p>
-                            <p class="type-body mt-1 text-xs text-slate-400">{{ $metaStats['most_common_finish_count'] > 0 ? 'recorded finishes' : 'No finish data yet' }}</p>
+                            <p class="type-label text-[9px] text-cyan-200/80">Points</p>
+                            <p class="type-stat mt-2 text-3xl leading-none text-amber-100">{{ $metaStats['best_finish_points'] > 0 ? $metaStats['best_finish_points'] : '--' }}</p>
+                            <p class="type-body mt-1 text-xs text-slate-400">{{ $metaStats['best_finish_points'] > 0 ? 'weighted finish points' : 'No finish data yet' }}</p>
                         </div>
                     </div>
                     <div class="flex min-h-[7.25rem] flex-col items-center justify-center border border-slate-800/80 bg-slate-950/45 p-3 text-center xl:min-h-0">
                         <p class="type-label text-[9px] text-slate-500">Spin %</p>
                         <p class="type-stat mt-4 text-2xl leading-none text-slate-100">{{ $metaStats['finish_percentages']['spin'] !== null ? number_format($metaStats['finish_percentages']['spin'], 1).'%' : '-' }}</p>
+                        <p class="type-body mt-2 text-xs text-slate-400">{{ number_format((int) ($metaStats['finish_points']['spin'] ?? 0)) }} total pts</p>
                     </div>
                     <div class="flex min-h-[7.25rem] flex-col items-center justify-center border border-slate-800/80 bg-slate-950/45 p-3 text-center xl:min-h-0">
                         <p class="type-label text-[9px] text-slate-500">Burst %</p>
                         <p class="type-stat mt-4 text-2xl leading-none text-slate-100">{{ $metaStats['finish_percentages']['burst'] !== null ? number_format($metaStats['finish_percentages']['burst'], 1).'%' : '-' }}</p>
+                        <p class="type-body mt-2 text-xs text-slate-400">{{ number_format((int) ($metaStats['finish_points']['burst'] ?? 0)) }} total pts</p>
                     </div>
                     <div class="flex min-h-[7.25rem] flex-col items-center justify-center border border-slate-800/80 bg-slate-950/45 p-3 text-center xl:min-h-0">
                         <p class="type-label text-[9px] text-slate-500">Over %</p>
                         <p class="type-stat mt-4 text-2xl leading-none text-slate-100">{{ $metaStats['finish_percentages']['over'] !== null ? number_format($metaStats['finish_percentages']['over'], 1).'%' : '-' }}</p>
+                        <p class="type-body mt-2 text-xs text-slate-400">{{ number_format((int) ($metaStats['finish_points']['over'] ?? 0)) }} total pts</p>
                     </div>
                     <div class="flex min-h-[7.25rem] flex-col items-center justify-center border border-slate-800/80 bg-slate-950/45 p-3 text-center xl:min-h-0">
                         <p class="type-label text-[9px] text-slate-500">Extreme %</p>
                         <p class="type-stat mt-4 text-2xl leading-none text-slate-100">{{ $metaStats['finish_percentages']['extreme'] !== null ? number_format($metaStats['finish_percentages']['extreme'], 1).'%' : '-' }}</p>
+                        <p class="type-body mt-2 text-xs text-slate-400">{{ number_format((int) ($metaStats['finish_points']['extreme'] ?? 0)) }} total pts</p>
                     </div>
                     <div class="flex min-h-[7.75rem] flex-col justify-between border border-amber-400/25 bg-[linear-gradient(160deg,rgba(251,191,36,0.1)_0%,rgba(2,6,23,0.92)_100%)] p-3 xl:col-span-2 xl:min-h-0">
                         <div class="flex items-start justify-between gap-3">

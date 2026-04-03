@@ -592,6 +592,12 @@ class EventOverviewService
             'over' => 0,
             'extreme' => 0,
         ]);
+        $finishTypePoints = collect([
+            'spin' => 0,
+            'burst' => 0,
+            'over' => 0,
+            'extreme' => 0,
+        ]);
         $sideRecords = [
             'X' => ['wins' => 0, 'losses' => 0],
             'B' => ['wins' => 0, 'losses' => 0],
@@ -605,6 +611,10 @@ class EventOverviewService
                 }
 
                 $finishTypeCounts->put($type, ((int) $finishTypeCounts->get($type, 0)) + 1);
+                $finishTypePoints->put(
+                    $type,
+                    ((int) $finishTypePoints->get($type, 0)) + EventMatch::finishTypePoints($type)
+                );
             }
 
             $player1Side = $match->player1StadiumSide?->code;
@@ -628,18 +638,21 @@ class EventOverviewService
         }
 
         $totalFinishes = $finishTypeCounts->sum();
-        $mostCommonFinish = $finishTypeCounts
+        $bestFinish = $finishTypePoints
             ->sortDesc()
             ->keys()
-            ->first(fn (string $type) => $finishTypeCounts->get($type) > 0);
+            ->first(fn (string $type) => $finishTypePoints->get($type) > 0);
 
         return [
             'most_used_bey' => $mostUsedBey,
             'most_used_bey_count' => $mostUsedBey ? (int) $beyUsage->get($mostUsedBey) : 0,
-            'most_common_finish' => $mostCommonFinish,
-            'most_common_finish_count' => $mostCommonFinish ? (int) $finishTypeCounts->get($mostCommonFinish) : 0,
+            'best_finish' => $bestFinish,
+            'best_finish_points' => $bestFinish ? (int) $finishTypePoints->get($bestFinish) : 0,
             'finish_percentages' => $finishTypeCounts
                 ->map(fn (int $count) => $totalFinishes > 0 ? round(($count / $totalFinishes) * 100, 1) : null)
+                ->all(),
+            'finish_points' => $finishTypePoints
+                ->map(fn (int $points) => (int) $points)
                 ->all(),
             'x_side_record' => $sideRecords['X']['wins'].'-'.$sideRecords['X']['losses'],
             'b_side_record' => $sideRecords['B']['wins'].'-'.$sideRecords['B']['losses'],
