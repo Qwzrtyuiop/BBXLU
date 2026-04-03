@@ -1234,8 +1234,11 @@ function setupDashboardSoftNavigation() {
                 method: options.method || 'GET',
                 body: options.body,
                 credentials: 'same-origin',
+                cache: 'no-store',
                 headers: {
                     Accept: 'text/html,application/xhtml+xml',
+                    'Cache-Control': 'no-cache',
+                    Pragma: 'no-cache',
                     'X-Requested-With': 'XMLHttpRequest',
                     ...(options.headers || {}),
                 },
@@ -1319,7 +1322,7 @@ function setupDashboardSoftNavigation() {
         }
 
         const shell = getDashboardShell();
-        if (!shell || shell.dataset.dashboardPanel === 'events') {
+        if (!shell) {
             return true;
         }
 
@@ -1490,6 +1493,18 @@ function setupDashboardSoftNavigation() {
         });
     });
 
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden || shouldSkipAutoRefresh()) {
+            return;
+        }
+
+        requestDashboardDocument(window.location.href, {
+            historyMode: 'replace',
+            preserveScroll: true,
+            quiet: true,
+        });
+    });
+
     state.refreshTimer = window.setInterval(() => {
         if (shouldSkipAutoRefresh()) {
             return;
@@ -1500,7 +1515,7 @@ function setupDashboardSoftNavigation() {
             preserveScroll: true,
             quiet: true,
         });
-    }, 20000);
+    }, 8000);
 }
 
 function bindDashboardBodyInteractions() {
