@@ -73,8 +73,8 @@
             </div>
 
             <label class="grid gap-1">
-                <span class="text-sm text-slate-300">Created By (nickname)</span>
-                <input name="created_by_nickname" value="{{ old('created_by_nickname') }}" required class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none">
+                <span class="text-sm text-slate-300">Created By</span>
+                <input value="{{ auth()->user()->nickname }}" readonly class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-slate-400 focus:outline-none">
             </label>
 
             <div class="mt-2 flex flex-wrap items-center gap-3">

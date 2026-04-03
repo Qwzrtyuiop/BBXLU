@@ -46,18 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const debugReturnButton = document.querySelector('[data-debug-return]');
 
     if (introHalf && secondHalf && proceedButton) {
-        const root = document.documentElement;
         const body = document.body;
         const introFit = introHalf.querySelector('[data-intro-fit]');
         const stickyHeader = document.querySelector('header.sticky');
-        let minSecondHalfTop = null;
-        let secondHalfEntered = false;
-
-        const lockInitialScroll = () => {
-            root.style.overflowY = 'hidden';
-            body.style.overflowY = 'hidden';
-            window.scrollTo({ top: 0, behavior: 'auto' });
-        };
+        let introTransitionTimeout = null;
 
         const fitIntroToViewport = () => {
             if (!introFit) {
@@ -82,20 +74,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const scheduleIntroFit = () => window.requestAnimationFrame(fitIntroToViewport);
 
-        const unlockScroll = () => {
-            root.style.overflowY = '';
-            body.style.overflowY = '';
-        };
-
-        const teardownIntroFit = () => {
-            window.removeEventListener('resize', scheduleIntroFit);
-            window.removeEventListener('load', scheduleIntroFit);
-            if (introFit) {
-                introFit.style.transform = '';
-                introFit.style.transformOrigin = '';
-            }
-        };
-
         const setIntroButtonsDisabled = (disabled) => {
             proceedButton.disabled = disabled;
             proceedButton.classList.toggle('opacity-60', disabled);
@@ -108,16 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        const keepSecondHalfLocked = () => {
-            if (minSecondHalfTop === null) {
-                return;
-            }
-
-            if (window.scrollY < minSecondHalfTop) {
-                window.scrollTo({ top: minSecondHalfTop, behavior: 'auto' });
-            }
-        };
-
         const getSecondHalfTargetTop = () => {
             const secondHalfTop = secondHalf.getBoundingClientRect().top + window.scrollY;
             const headerHeight = stickyHeader ? stickyHeader.getBoundingClientRect().height : 0;
@@ -125,7 +93,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return Math.max(0, secondHalfTop - headerHeight - revealOffset);
         };
 
-        lockInitialScroll();
+        const scrollToSecondHalf = () => {
+            window.scrollTo({ top: getSecondHalfTargetTop(), behavior: 'smooth' });
+        };
+
+        const resetIntroTransition = () => {
+            if (introTransitionTimeout !== null) {
+                window.clearTimeout(introTransitionTimeout);
+                introTransitionTimeout = null;
+            }
+
+            body.classList.remove('clash-play');
+            body.classList.remove('clash-finished');
+            setIntroButtonsDisabled(false);
+        };
+
         fitIntroToViewport();
         window.requestAnimationFrame(fitIntroToViewport);
         window.addEventListener('resize', scheduleIntroFit);
@@ -134,68 +116,40 @@ document.addEventListener('DOMContentLoaded', () => {
             document.fonts.ready.then(scheduleIntroFit);
         }
 
-        const clashDurationMs = 1660;
-        const clashTransitionMs = clashDurationMs;
-        const lockSecondHalfDelayMs = 500;
-        const immediateLockDelayMs = 120;
-
-        const revealSecondHalf = (lockDelayMs) => {
-            unlockScroll();
-            teardownIntroFit();
-
-            minSecondHalfTop = getSecondHalfTargetTop();
-            window.scrollTo({ top: minSecondHalfTop, behavior: 'smooth' });
-
-            window.setTimeout(() => {
-                keepSecondHalfLocked();
-                window.addEventListener('scroll', keepSecondHalfLocked, { passive: true });
-            }, lockDelayMs);
-        };
-
-        const enterSecondHalf = ({ withClash }) => {
-            if (secondHalfEntered) {
-                return;
-            }
-
-            secondHalfEntered = true;
-            setIntroButtonsDisabled(true);
-
-            if (withClash) {
-                body.classList.add('clash-play');
-                window.setTimeout(() => {
-                    revealSecondHalf(lockSecondHalfDelayMs);
-                }, clashTransitionMs);
-                return;
-            }
-
-            body.classList.remove('clash-play');
-            revealSecondHalf(immediateLockDelayMs);
-        };
+        const clashTravelDurationMs = 1660;
+        const clashImpactDurationMs = 250;
+        const clashResetBufferMs = 40;
+        const clashDurationMs = clashTravelDurationMs + clashImpactDurationMs + clashResetBufferMs;
 
         proceedButton.addEventListener('click', () => {
-            enterSecondHalf({ withClash: true });
+            if (introTransitionTimeout !== null) {
+                return;
+            }
+
+            setIntroButtonsDisabled(true);
+            body.classList.remove('clash-play');
+            body.classList.remove('clash-finished');
+            void body.offsetWidth;
+            body.classList.add('clash-play');
+            introTransitionTimeout = window.setTimeout(() => {
+                introTransitionTimeout = null;
+                body.classList.remove('clash-play');
+                body.classList.add('clash-finished');
+                setIntroButtonsDisabled(false);
+                scrollToSecondHalf();
+            }, clashDurationMs);
         });
 
         skipIntroButton?.addEventListener('click', () => {
-            enterSecondHalf({ withClash: false });
+            resetIntroTransition();
+            scrollToSecondHalf();
         });
 
         if (debugReturnButton) {
             debugReturnButton.addEventListener('click', () => {
-                window.removeEventListener('scroll', keepSecondHalfLocked);
-                minSecondHalfTop = null;
-                secondHalfEntered = false;
-                body.classList.remove('clash-play');
-                setIntroButtonsDisabled(false);
-
-                lockInitialScroll();
-                fitIntroToViewport();
+                resetIntroTransition();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
                 window.requestAnimationFrame(fitIntroToViewport);
-                window.addEventListener('resize', scheduleIntroFit);
-                window.addEventListener('load', scheduleIntroFit);
-                if (document.fonts && document.fonts.ready) {
-                    document.fonts.ready.then(scheduleIntroFit);
-                }
             });
         }
     }
@@ -326,38 +280,12 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    const floatingRails = document.querySelectorAll('[data-float-rail]');
-    const eventsAnchor = document.querySelector('[data-events-anchor]');
-    const desktopMedia = window.matchMedia('(min-width: 1280px)');
-
-    if (floatingRails.length > 0 && eventsAnchor) {
-        const stickyTop = 96; // Matches roughly top-24 with sticky header.
-
-        const updateRailPositions = () => {
-            if (!desktopMedia.matches) {
-                floatingRails.forEach((rail) => {
-                    rail.style.top = '';
-                });
-                return;
-            }
-
-            const anchorTop = eventsAnchor.getBoundingClientRect().top + window.scrollY;
-            const top = Math.max(stickyTop, anchorTop - window.scrollY);
-            floatingRails.forEach((rail) => {
-                rail.style.top = `${top}px`;
-            });
-        };
-
-        updateRailPositions();
-        window.addEventListener('scroll', updateRailPositions, { passive: true });
-        window.addEventListener('resize', updateRailPositions);
-        desktopMedia.addEventListener('change', updateRailPositions);
-    }
-
     const dashboardShell = document.querySelector('[data-dashboard-shell]');
     if (dashboardShell) {
         document.documentElement.style.overflowY = 'hidden';
         document.body.style.overflowY = 'hidden';
+        setupDashboardSoftNavigation();
+        window.requestAnimationFrame(() => hideDashboardLoader());
     }
 
     const registerForm = document.querySelector('[data-auth-register]');
@@ -1117,3 +1045,1170 @@ document.addEventListener('DOMContentLoaded', () => {
         updateProfileMatchFilter();
     }
 });
+
+function setupDashboardSoftNavigation() {
+    if (window.__dashboardSoftNavigationBound) {
+        return;
+    }
+
+    window.__dashboardSoftNavigationBound = true;
+    window.__dashboardRetryRequest = null;
+
+    const state = {
+        activeController: null,
+        requestInFlight: false,
+        refreshTimer: null,
+        retryRequest: null,
+    };
+
+    const getDashboardShell = () => document.querySelector('[data-dashboard-shell]');
+    const getDashboardMain = () => document.querySelector('[data-dashboard-main]');
+    const getDashboardRoute = () => getDashboardShell()?.dataset.dashboardRoute || '';
+    const isDashboardActive = () => Boolean(getDashboardShell());
+
+    const isDashboardUrl = (candidate) => {
+        const dashboardRoute = getDashboardRoute();
+        if (!dashboardRoute) {
+            return false;
+        }
+
+        const dashboardUrl = new URL(dashboardRoute, window.location.href);
+        const targetUrl = new URL(candidate, window.location.href);
+
+        return targetUrl.origin === dashboardUrl.origin
+            && targetUrl.pathname === dashboardUrl.pathname;
+    };
+
+    const captureDashboardScroll = () => ({
+        shellTop: getDashboardShell()?.scrollTop ?? 0,
+        mainTop: getDashboardMain()?.scrollTop ?? 0,
+    });
+
+    const restoreDashboardScroll = (positions) => {
+        if (!positions) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            const shell = getDashboardShell();
+            const main = getDashboardMain();
+
+            if (shell) {
+                shell.scrollTop = positions.shellTop ?? 0;
+            }
+
+            if (main) {
+                main.scrollTop = positions.mainTop ?? 0;
+            }
+        });
+    };
+
+    const resetDashboardScroll = () => {
+        window.requestAnimationFrame(() => {
+            const shell = getDashboardShell();
+            const main = getDashboardMain();
+
+            if (shell) {
+                shell.scrollTop = 0;
+            }
+
+            if (main) {
+                main.scrollTop = 0;
+            }
+        });
+    };
+
+    const setDashboardBusyState = (pending) => {
+        const shell = getDashboardShell();
+        if (!shell) {
+            return;
+        }
+
+        shell.style.transition = 'opacity 180ms ease, transform 180ms ease, filter 180ms ease';
+
+        if (pending) {
+            shell.style.opacity = '0.72';
+            shell.style.transform = 'translateY(6px)';
+            shell.style.filter = 'saturate(0.88)';
+            shell.style.pointerEvents = 'none';
+            return;
+        }
+
+        shell.style.opacity = '1';
+        shell.style.transform = 'translateY(0)';
+        shell.style.filter = '';
+        shell.style.pointerEvents = '';
+    };
+
+    const animateDashboardShellIn = () => {
+        const shell = getDashboardShell();
+        if (!shell) {
+            return;
+        }
+
+        shell.style.opacity = '0';
+        shell.style.transform = 'translateY(10px)';
+        shell.style.transition = 'opacity 220ms ease, transform 220ms ease';
+
+        window.requestAnimationFrame(() => {
+            shell.style.opacity = '1';
+            shell.style.transform = 'translateY(0)';
+        });
+    };
+
+    const updateHistoryForDashboard = (url, mode) => {
+        if (mode === 'skip') {
+            return;
+        }
+
+        if (mode === 'push' && url !== window.location.href) {
+            window.history.pushState({ dashboard: true }, '', url);
+            return;
+        }
+
+        window.history.replaceState({ dashboard: true }, '', url);
+    };
+
+    const applyDashboardDocument = (nextDocument, finalUrl, options = {}) => {
+        const nextDashboardShell = nextDocument.querySelector('[data-dashboard-shell]');
+        document.title = nextDocument.title || document.title;
+        document.body.className = nextDocument.body.className;
+        document.body.innerHTML = nextDocument.body.innerHTML;
+
+        updateHistoryForDashboard(finalUrl, options.historyMode ?? 'replace');
+        bindDashboardBodyInteractions();
+        if (options.quiet) {
+            hideDashboardLoader();
+        } else {
+            window.requestAnimationFrame(() => hideDashboardLoader());
+        }
+
+        if (options.preserveScroll) {
+            restoreDashboardScroll(options.scrollPositions);
+        } else {
+            resetDashboardScroll();
+        }
+
+        if (!options.quiet) {
+            animateDashboardShellIn();
+        }
+
+        if (options.warnOnErrors && nextDashboardShell?.dataset.dashboardErrorState === 'true') {
+            window.requestAnimationFrame(() => {
+                showDashboardWarning({
+                    title: 'Action needs attention',
+                    message: 'The dashboard finished the request with errors. Review the highlighted details before trying again.',
+                    allowRetry: false,
+                });
+            });
+        }
+    };
+
+    const requestDashboardDocument = async (url, options = {}) => {
+        if (!isDashboardActive()) {
+            if (!options.quiet) {
+                window.location.href = url;
+            }
+            return false;
+        }
+
+        if (state.activeController) {
+            state.activeController.abort();
+        }
+
+        const controller = new AbortController();
+        state.activeController = controller;
+        state.requestInFlight = true;
+
+        const preserveScroll = Boolean(options.preserveScroll);
+        const scrollPositions = preserveScroll ? captureDashboardScroll() : null;
+
+        if (!options.quiet) {
+            setDashboardBusyState(true);
+            showDashboardLoader('Updating changes...');
+            hideDashboardWarning();
+        }
+
+        try {
+            const response = await fetch(url, {
+                method: options.method || 'GET',
+                body: options.body,
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'text/html,application/xhtml+xml',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    ...(options.headers || {}),
+                },
+                signal: controller.signal,
+            });
+
+            const html = await response.text();
+            const nextDocument = new DOMParser().parseFromString(html, 'text/html');
+            const nextDashboardShell = nextDocument.querySelector('[data-dashboard-shell]');
+            const finalUrl = response.url || url;
+
+            if (!response.ok) {
+                if (!options.quiet) {
+                    showDashboardWarning({
+                        title: 'Dashboard request failed',
+                        message: `The server returned ${response.status}. You can retry this request or reload the page.`,
+                    });
+                }
+
+                return false;
+            }
+
+            if (!nextDashboardShell) {
+                if (!options.quiet) {
+                    showDashboardWarning({
+                        title: 'Dashboard response was incomplete',
+                        message: 'The dashboard could not finish loading this view. Try the request again or reload the page.',
+                    });
+                }
+                return false;
+            }
+
+            const render = () => applyDashboardDocument(nextDocument, finalUrl, {
+                historyMode: options.historyMode ?? 'replace',
+                preserveScroll,
+                scrollPositions,
+                quiet: Boolean(options.quiet),
+                warnOnErrors: Boolean(options.warnOnErrors),
+            });
+
+            if (!options.quiet && typeof document.startViewTransition === 'function') {
+                await document.startViewTransition(() => Promise.resolve(render())).finished;
+            } else {
+                render();
+            }
+
+            return true;
+        } catch (error) {
+            if (error.name !== 'AbortError' && !options.quiet) {
+                showDashboardWarning({
+                    title: 'Connection lost during dashboard update',
+                    message: 'The request did not complete. Check the connection or retry the update.',
+                });
+            }
+
+            return false;
+        } finally {
+            if (state.activeController === controller) {
+                state.activeController = null;
+            }
+
+            state.requestInFlight = false;
+
+            if (!options.quiet) {
+                setDashboardBusyState(false);
+            }
+        }
+    };
+
+    const shouldSkipAutoRefresh = () => {
+        if (!isDashboardActive() || document.hidden || state.requestInFlight) {
+            return true;
+        }
+
+        if (isDashboardWarningVisible()) {
+            return true;
+        }
+
+        if (document.body.classList.contains('overflow-hidden')) {
+            return true;
+        }
+
+        const shell = getDashboardShell();
+        if (!shell || shell.dataset.dashboardPanel === 'events') {
+            return true;
+        }
+
+        const activeElement = document.activeElement;
+        if (
+            activeElement instanceof HTMLElement
+            && (
+                activeElement.isContentEditable
+                || ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName)
+            )
+        ) {
+            return true;
+        }
+
+        return Boolean(document.querySelector('form[data-dashboard-dirty="true"]'));
+    };
+
+    document.addEventListener('click', (event) => {
+        if (event.defaultPrevented || !isDashboardActive()) {
+            return;
+        }
+
+        const link = event.target.closest('a[href]');
+        if (!link || link.hasAttribute('download') || link.dataset.dashboardSoftIgnore !== undefined) {
+            return;
+        }
+
+        if (link.target && link.target !== '_self') {
+            return;
+        }
+
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+            return;
+        }
+
+        const href = link.getAttribute('href');
+        if (!href || href.startsWith('#') || !isDashboardUrl(link.href)) {
+            return;
+        }
+
+        event.preventDefault();
+        state.retryRequest = () => requestDashboardDocument(link.href, {
+            historyMode: 'push',
+            preserveScroll: false,
+        });
+        window.__dashboardRetryRequest = state.retryRequest;
+        requestDashboardDocument(link.href, {
+            historyMode: 'push',
+            preserveScroll: false,
+        });
+    });
+
+    document.addEventListener('submit', (event) => {
+        if (event.defaultPrevented || !isDashboardActive()) {
+            return;
+        }
+
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement) || form.dataset.dashboardSoftIgnore !== undefined) {
+            return;
+        }
+
+        const method = (form.getAttribute('method') || 'GET').toUpperCase();
+        if (method === 'GET') {
+            return;
+        }
+
+        const action = form.action || window.location.href;
+        const actionUrl = new URL(action, window.location.href);
+        if (actionUrl.origin !== window.location.origin || actionUrl.pathname === '/logout') {
+            return;
+        }
+
+        event.preventDefault();
+        form.dataset.dashboardDirty = 'false';
+
+        const submitter = event.submitter;
+        const buildFormData = () => {
+            const formData = new FormData(form);
+
+            if (submitter instanceof HTMLElement && submitter.getAttribute('name')) {
+                formData.append(
+                    submitter.getAttribute('name'),
+                    submitter.getAttribute('value') || ''
+                );
+            }
+
+            return formData;
+        };
+
+        state.retryRequest = () => requestDashboardDocument(actionUrl.toString(), {
+            method,
+            body: buildFormData(),
+            historyMode: 'push',
+            preserveScroll: true,
+            warnOnErrors: true,
+        });
+        window.__dashboardRetryRequest = state.retryRequest;
+
+        requestDashboardDocument(actionUrl.toString(), {
+            method,
+            body: buildFormData(),
+            historyMode: 'push',
+            preserveScroll: true,
+            warnOnErrors: true,
+        });
+    });
+
+    document.addEventListener('input', (event) => {
+        if (!isDashboardActive()) {
+            return;
+        }
+
+        const form = event.target instanceof HTMLElement ? event.target.closest('form') : null;
+        if (form && form.dataset.dashboardSoftIgnore === undefined) {
+            form.dataset.dashboardDirty = 'true';
+        }
+    });
+
+    document.addEventListener('change', (event) => {
+        if (!isDashboardActive()) {
+            return;
+        }
+
+        const form = event.target instanceof HTMLElement ? event.target.closest('form') : null;
+        if (form && form.dataset.dashboardSoftIgnore === undefined) {
+            form.dataset.dashboardDirty = 'true';
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || !isDashboardActive()) {
+            return;
+        }
+
+        if (isDashboardWarningVisible()) {
+            hideDashboardWarning();
+            return;
+        }
+
+        const visibleModals = getVisibleDashboardModals();
+        const lastModal = visibleModals[visibleModals.length - 1];
+        if (lastModal) {
+            closeDashboardModal(lastModal);
+        }
+    });
+
+    window.addEventListener('popstate', () => {
+        if (!isDashboardActive() || !isDashboardUrl(window.location.href)) {
+            return;
+        }
+
+        requestDashboardDocument(window.location.href, {
+            historyMode: 'skip',
+            preserveScroll: false,
+        });
+    });
+
+    window.addEventListener('focus', () => {
+        if (shouldSkipAutoRefresh()) {
+            return;
+        }
+
+        requestDashboardDocument(window.location.href, {
+            historyMode: 'replace',
+            preserveScroll: true,
+            quiet: true,
+        });
+    });
+
+    state.refreshTimer = window.setInterval(() => {
+        if (shouldSkipAutoRefresh()) {
+            return;
+        }
+
+        requestDashboardDocument(window.location.href, {
+            historyMode: 'replace',
+            preserveScroll: true,
+            quiet: true,
+        });
+    }, 20000);
+}
+
+function bindDashboardBodyInteractions() {
+    if (!document.querySelector('[data-dashboard-shell]')) {
+        syncDashboardScrollLock();
+        return;
+    }
+
+    syncDashboardScrollLock();
+    bindDashboardWarningOverlay();
+    bindDashboardRegisterModal();
+    bindDashboardDeckModal();
+    bindDashboardParticipantsModal();
+    bindDashboardLockedParticipantModals();
+    bindDashboardWorkspaceMatchModal();
+    bindDashboardEventModal();
+    bindDashboardLeaderboardProfileModal();
+    updateDashboardModalScrollLock();
+
+    const dashboardShell = document.querySelector('[data-dashboard-shell]');
+    if (dashboardShell?.dataset.dashboardErrorState === 'true') {
+        window.requestAnimationFrame(() => {
+            showDashboardWarning({
+                title: 'Action needs attention',
+                message: 'The dashboard loaded with errors. Review the highlighted details before continuing.',
+                allowRetry: false,
+            });
+        });
+    }
+}
+
+function syncDashboardScrollLock() {
+    const dashboardShell = document.querySelector('[data-dashboard-shell]');
+    document.documentElement.style.overflowY = dashboardShell ? 'hidden' : '';
+    document.body.style.overflowY = dashboardShell ? 'hidden' : '';
+}
+
+function showDashboardLoader(message = 'Syncing admin view...') {
+    const loader = document.querySelector('[data-dashboard-loader]');
+    if (!loader) {
+        return;
+    }
+
+    const label = loader.querySelector('[data-dashboard-loader-label]');
+    if (label) {
+        label.textContent = message;
+    }
+
+    loader.classList.remove('opacity-0', 'pointer-events-none');
+    loader.classList.add('opacity-100');
+    loader.setAttribute('aria-hidden', 'false');
+}
+
+function hideDashboardLoader() {
+    const loader = document.querySelector('[data-dashboard-loader]');
+    if (!loader) {
+        return;
+    }
+
+    loader.classList.remove('opacity-100');
+    loader.classList.add('opacity-0', 'pointer-events-none');
+    loader.setAttribute('aria-hidden', 'true');
+}
+
+function isDashboardWarningVisible() {
+    const warning = document.querySelector('[data-dashboard-warning]');
+    return Boolean(warning && warning.getAttribute('aria-hidden') === 'false');
+}
+
+function showDashboardWarning(options = {}) {
+    const warning = document.querySelector('[data-dashboard-warning]');
+    if (!warning) {
+        return;
+    }
+
+    const title = warning.querySelector('[data-dashboard-warning-title]');
+    const message = warning.querySelector('[data-dashboard-warning-message]');
+    const retryButton = warning.querySelector('[data-dashboard-warning-retry]');
+
+    if (title) {
+        title.textContent = options.title || 'Dashboard update needs attention';
+    }
+
+    if (message) {
+        message.textContent = options.message || 'The dashboard could not finish this request. You can retry the action or reload the page.';
+    }
+
+    const canRetry = options.allowRetry ?? (typeof window.__dashboardRetryRequest === 'function');
+    if (retryButton) {
+        retryButton.classList.toggle('hidden', !canRetry);
+    }
+
+    hideDashboardLoader();
+    warning.classList.remove('opacity-0', 'pointer-events-none');
+    warning.classList.add('opacity-100');
+    warning.setAttribute('aria-hidden', 'false');
+    updateDashboardModalScrollLock();
+}
+
+function hideDashboardWarning() {
+    const warning = document.querySelector('[data-dashboard-warning]');
+    if (!warning) {
+        return;
+    }
+
+    warning.classList.remove('opacity-100');
+    warning.classList.add('opacity-0', 'pointer-events-none');
+    warning.setAttribute('aria-hidden', 'true');
+    updateDashboardModalScrollLock();
+}
+
+function bindDashboardWarningOverlay() {
+    const warning = document.querySelector('[data-dashboard-warning]');
+    if (!warning || warning.dataset.dashboardBound === 'true') {
+        return;
+    }
+
+    warning.dataset.dashboardBound = 'true';
+
+    const dismissButton = warning.querySelector('[data-dashboard-warning-dismiss]');
+    const retryButton = warning.querySelector('[data-dashboard-warning-retry]');
+    const reloadButton = warning.querySelector('[data-dashboard-warning-reload]');
+
+    dismissButton?.addEventListener('click', () => hideDashboardWarning());
+
+    retryButton?.addEventListener('click', () => {
+        hideDashboardWarning();
+        if (window.__dashboardRetryRequest) {
+            window.__dashboardRetryRequest();
+        }
+    });
+
+    reloadButton?.addEventListener('click', () => {
+        window.location.reload();
+    });
+}
+
+function getVisibleDashboardModals() {
+    return Array.from(document.querySelectorAll([
+        '[data-register-modal]',
+        '[data-deck-modal]',
+        '[data-participants-modal]',
+        '[data-locked-participant-modal]',
+        '[data-workspace-match-modal]',
+        '[data-event-modal]',
+        '[data-leaderboard-profile-modal]',
+    ].join(','))).filter((modal) => !modal.classList.contains('hidden'));
+}
+
+function updateDashboardModalScrollLock() {
+    if (getVisibleDashboardModals().length > 0 || isDashboardWarningVisible()) {
+        document.body.classList.add('overflow-hidden');
+        return;
+    }
+
+    document.body.classList.remove('overflow-hidden');
+}
+
+function openDashboardModal(modal) {
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('overflow-hidden');
+}
+
+function closeDashboardModal(modal) {
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+
+    if (modal.matches('[data-register-modal]')) {
+        const feedbackLabel = modal.querySelector('[data-register-feedback]');
+        if (feedbackLabel) {
+            feedbackLabel.textContent = modal.dataset.defaultFeedback || '';
+            feedbackLabel.classList.remove('text-emerald-300', 'text-rose-300');
+            feedbackLabel.classList.add('text-slate-500');
+        }
+    }
+
+    if (modal.matches('[data-workspace-match-modal]')) {
+        const body = modal.querySelector('[data-workspace-match-modal-body]');
+        if (body) {
+            body.innerHTML = '';
+        }
+    }
+
+    if (modal.matches('[data-event-modal]')) {
+        const body = modal.querySelector('[data-event-modal-body]');
+        if (body) {
+            body.innerHTML = '';
+        }
+    }
+
+    if (modal.matches('[data-leaderboard-profile-modal]')) {
+        const body = modal.querySelector('[data-leaderboard-profile-body]');
+        if (body) {
+            body.innerHTML = '';
+        }
+    }
+
+    updateDashboardModalScrollLock();
+}
+
+function bindDashboardRegisterModal() {
+    const registerModal = document.querySelector('[data-register-modal]');
+    if (!registerModal || registerModal.dataset.dashboardBound === 'true') {
+        return;
+    }
+
+    registerModal.dataset.dashboardBound = 'true';
+
+    const openButtons = document.querySelectorAll('[data-register-modal-open]');
+    const closeButtons = registerModal.querySelectorAll('[data-register-modal-close]');
+    const existingSelect = registerModal.querySelector('[data-register-existing]');
+    const addExistingButton = registerModal.querySelector('[data-register-existing-add]');
+    const newNicknameInput = registerModal.querySelector('[data-register-new]');
+    const addNewButton = registerModal.querySelector('[data-register-new-add]');
+    const selectedContainer = registerModal.querySelector('[data-register-selected]');
+    const hiddenInputsContainer = registerModal.querySelector('[data-register-hidden-inputs]');
+    const countLabel = registerModal.querySelector('[data-register-count]');
+    const feedbackLabel = registerModal.querySelector('[data-register-feedback]');
+    const submitButton = registerModal.querySelector('[data-register-submit]');
+    const registerFormElement = registerModal.querySelector('[data-register-form]');
+    const selectedNicknames = new Map();
+    const defaultFeedback = feedbackLabel ? feedbackLabel.textContent : '';
+    registerModal.dataset.defaultFeedback = defaultFeedback;
+
+    const normalizeNickname = (value) => value.trim().replace(/\s+/g, ' ');
+    const nicknameKey = (value) => normalizeNickname(value).toLocaleLowerCase();
+
+    const setFeedback = (message, tone = 'neutral') => {
+        if (!feedbackLabel) {
+            return;
+        }
+
+        feedbackLabel.textContent = message;
+        feedbackLabel.classList.remove('text-slate-500', 'text-emerald-300', 'text-rose-300');
+
+        if (tone === 'success') {
+            feedbackLabel.classList.add('text-emerald-300');
+            return;
+        }
+
+        if (tone === 'error') {
+            feedbackLabel.classList.add('text-rose-300');
+            return;
+        }
+
+        feedbackLabel.classList.add('text-slate-500');
+    };
+
+    const renderSelectedNicknames = () => {
+        if (!selectedContainer || !hiddenInputsContainer) {
+            return;
+        }
+
+        selectedContainer.innerHTML = '';
+        hiddenInputsContainer.innerHTML = '';
+
+        if (countLabel) {
+            countLabel.textContent = `${selectedNicknames.size} selected`;
+        }
+
+        if (submitButton) {
+            submitButton.disabled = selectedNicknames.size === 0;
+        }
+
+        if (selectedNicknames.size === 0) {
+            const emptyState = document.createElement('p');
+            emptyState.className = 'text-sm text-slate-500';
+            emptyState.textContent = 'No players selected yet.';
+            selectedContainer.appendChild(emptyState);
+            return;
+        }
+
+        selectedNicknames.forEach((nickname, key) => {
+            const row = document.createElement('div');
+            row.className = 'flex items-center justify-between gap-2 border border-slate-800/80 bg-slate-950/65 px-2.5 py-1.5';
+
+            const name = document.createElement('span');
+            name.className = 'min-w-0 flex-1 truncate text-sm text-slate-100';
+            name.textContent = nickname;
+
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'type-label border border-rose-500/60 px-2 py-1 text-[9px] text-rose-200 transition hover:bg-rose-500/10';
+            removeButton.textContent = 'Remove';
+            removeButton.addEventListener('click', () => {
+                selectedNicknames.delete(key);
+                renderSelectedNicknames();
+                setFeedback(`${nickname} removed from the selection.`, 'neutral');
+            });
+
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.name = 'selected_nicknames[]';
+            hiddenInput.value = nickname;
+
+            row.appendChild(name);
+            row.appendChild(removeButton);
+            selectedContainer.appendChild(row);
+            hiddenInputsContainer.appendChild(hiddenInput);
+        });
+    };
+
+    const addNickname = (rawNickname, successMessage) => {
+        const nickname = normalizeNickname(rawNickname);
+
+        if (!nickname) {
+            setFeedback('Choose or enter a nickname first.', 'error');
+            return;
+        }
+
+        const key = nicknameKey(nickname);
+        if (selectedNicknames.has(key)) {
+            setFeedback(`${nickname} is already selected.`, 'error');
+            return;
+        }
+
+        selectedNicknames.set(key, nickname);
+        renderSelectedNicknames();
+        setFeedback(successMessage || `${nickname} added to the selection.`, 'success');
+    };
+
+    const openRegisterModal = () => openDashboardModal(registerModal);
+    const closeRegisterModal = () => closeDashboardModal(registerModal);
+
+    if (hiddenInputsContainer) {
+        hiddenInputsContainer.querySelectorAll('input[name="selected_nicknames[]"]').forEach((input) => {
+            const nickname = normalizeNickname(input.value);
+            if (!nickname) {
+                return;
+            }
+
+            selectedNicknames.set(nicknameKey(nickname), nickname);
+        });
+    }
+
+    renderSelectedNicknames();
+
+    openButtons.forEach((button) => {
+        button.addEventListener('click', openRegisterModal);
+    });
+
+    closeButtons.forEach((button) => {
+        button.addEventListener('click', closeRegisterModal);
+    });
+
+    addExistingButton?.addEventListener('click', () => {
+        const selectedOptions = existingSelect ? Array.from(existingSelect.selectedOptions) : [];
+
+        if (selectedOptions.length === 0) {
+            setFeedback('Select at least one registered user to add.', 'error');
+            return;
+        }
+
+        selectedOptions.forEach((option) => {
+            if (option.value) {
+                addNickname(option.value, `${option.value} added from registered users.`);
+            }
+        });
+    });
+
+    existingSelect?.addEventListener('dblclick', () => {
+        const firstOption = Array.from(existingSelect.selectedOptions).find((option) => option.value);
+        if (firstOption) {
+            addNickname(firstOption.value, `${firstOption.value} added from registered users.`);
+        }
+    });
+
+    newNicknameInput?.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') {
+            return;
+        }
+
+        event.preventDefault();
+        addNickname(newNicknameInput.value, `${normalizeNickname(newNicknameInput.value)} added as a new user.`);
+        newNicknameInput.value = '';
+    });
+
+    addNewButton?.addEventListener('click', () => {
+        if (!newNicknameInput) {
+            return;
+        }
+
+        const nickname = normalizeNickname(newNicknameInput.value);
+        addNickname(nickname, `${nickname} added as a new user.`);
+        newNicknameInput.value = '';
+    });
+
+    registerFormElement?.addEventListener('submit', (event) => {
+        if (selectedNicknames.size > 0) {
+            return;
+        }
+
+        event.preventDefault();
+        setFeedback('Add at least one player before confirming.', 'error');
+    });
+
+    registerModal.addEventListener('click', (event) => {
+        if (event.target === registerModal) {
+            closeRegisterModal();
+        }
+    });
+
+    if (registerModal.dataset.registerOpenOnLoad === 'true') {
+        openRegisterModal();
+    }
+}
+
+function bindDashboardDeckModal() {
+    const deckModal = document.querySelector('[data-deck-modal]');
+    if (!deckModal || deckModal.dataset.dashboardBound === 'true') {
+        return;
+    }
+
+    deckModal.dataset.dashboardBound = 'true';
+
+    const openButtons = document.querySelectorAll('[data-deck-modal-open]');
+    const closeButtons = deckModal.querySelectorAll('[data-deck-modal-close]');
+    const deckScrollBody = deckModal.querySelector('[data-deck-scroll-body]');
+    const deckBulkForm = deckModal.querySelector('[data-deck-bulk-form]');
+    const deckBulkInputs = deckModal.querySelector('[data-deck-bulk-inputs]');
+    const deckBulkSubmitButton = deckModal.querySelector('[data-deck-bulk-submit]');
+
+    const focusDeckRow = () => {
+        const playerId = deckModal.dataset.deckFocusPlayerId;
+        if (!playerId || !deckScrollBody) {
+            return;
+        }
+
+        const targetRow = deckModal.querySelector(`[data-deck-player-row="${playerId}"]`);
+        if (!targetRow) {
+            return;
+        }
+
+        targetRow.scrollIntoView({ block: 'center', behavior: 'auto' });
+    };
+
+    const appendBulkInput = (name, value) => {
+        if (!deckBulkInputs) {
+            return;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+        deckBulkInputs.appendChild(input);
+    };
+
+    const openDeckModal = () => {
+        openDashboardModal(deckModal);
+        window.requestAnimationFrame(focusDeckRow);
+    };
+
+    const closeDeckModal = () => closeDashboardModal(deckModal);
+
+    openButtons.forEach((button) => {
+        button.addEventListener('click', openDeckModal);
+    });
+
+    closeButtons.forEach((button) => {
+        button.addEventListener('click', closeDeckModal);
+    });
+
+    deckBulkSubmitButton?.addEventListener('click', () => {
+        if (!deckBulkForm || !deckBulkInputs) {
+            return;
+        }
+
+        deckBulkForm.setAttribute('action', deckModal.dataset.deckBulkAction || '');
+        deckBulkInputs.innerHTML = '';
+
+        deckModal.querySelectorAll('[data-deck-player-row]').forEach((row) => {
+            const playerId = row.dataset.deckPlayerRow;
+            if (!playerId) {
+                return;
+            }
+
+            const bey1 = row.querySelector('input[name="deck_bey1"]');
+            const bey2 = row.querySelector('input[name="deck_bey2"]');
+            const bey3 = row.querySelector('input[name="deck_bey3"]');
+
+            appendBulkInput(`decks[${playerId}][deck_bey1]`, bey1?.value || '');
+            appendBulkInput(`decks[${playerId}][deck_bey2]`, bey2?.value || '');
+            appendBulkInput(`decks[${playerId}][deck_bey3]`, bey3?.value || '');
+        });
+
+        deckBulkForm.submit();
+    });
+
+    deckModal.addEventListener('click', (event) => {
+        if (event.target === deckModal) {
+            closeDeckModal();
+        }
+    });
+
+    if (deckModal.dataset.deckOpenOnLoad === 'true') {
+        openDeckModal();
+    }
+}
+
+function bindDashboardParticipantsModal() {
+    const participantsModal = document.querySelector('[data-participants-modal]');
+    if (!participantsModal || participantsModal.dataset.dashboardBound === 'true') {
+        return;
+    }
+
+    participantsModal.dataset.dashboardBound = 'true';
+
+    const openButtons = document.querySelectorAll('[data-participants-modal-open]');
+    const closeButtons = participantsModal.querySelectorAll('[data-participants-modal-close]');
+
+    const openParticipantsModal = () => openDashboardModal(participantsModal);
+    const closeParticipantsModal = () => closeDashboardModal(participantsModal);
+
+    openButtons.forEach((button) => {
+        button.addEventListener('click', openParticipantsModal);
+    });
+
+    closeButtons.forEach((button) => {
+        button.addEventListener('click', closeParticipantsModal);
+    });
+
+    participantsModal.addEventListener('click', (event) => {
+        if (event.target === participantsModal) {
+            closeParticipantsModal();
+        }
+    });
+}
+
+function bindDashboardLockedParticipantModals() {
+    const lockedParticipantModals = document.querySelectorAll('[data-locked-participant-modal]');
+    if (lockedParticipantModals.length === 0) {
+        return;
+    }
+
+    document.querySelectorAll('[data-locked-participant-open]').forEach((button) => {
+        if (button.dataset.dashboardBound === 'true') {
+            return;
+        }
+
+        button.dataset.dashboardBound = 'true';
+        button.addEventListener('click', () => {
+            const targetId = button.dataset.lockedParticipantOpen;
+            const modal = Array.from(lockedParticipantModals).find((item) => item.dataset.lockedParticipantModal === targetId);
+            if (modal) {
+                openDashboardModal(modal);
+            }
+        });
+    });
+
+    lockedParticipantModals.forEach((modal) => {
+        if (modal.dataset.dashboardBound === 'true') {
+            return;
+        }
+
+        modal.dataset.dashboardBound = 'true';
+
+        modal.querySelectorAll('[data-locked-participant-close]').forEach((button) => {
+            button.addEventListener('click', () => closeDashboardModal(modal));
+        });
+
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeDashboardModal(modal);
+            }
+        });
+
+        if (modal.dataset.lockedParticipantOpenOnLoad === 'true') {
+            openDashboardModal(modal);
+        }
+    });
+}
+
+function bindDashboardWorkspaceMatchModal() {
+    const workspaceMatchModal = document.querySelector('[data-workspace-match-modal]');
+    if (!workspaceMatchModal || workspaceMatchModal.dataset.dashboardBound === 'true') {
+        return;
+    }
+
+    workspaceMatchModal.dataset.dashboardBound = 'true';
+
+    const workspaceMatchButtons = document.querySelectorAll('[data-workspace-match-open]');
+    const workspaceMatchCloseButtons = workspaceMatchModal.querySelectorAll('[data-workspace-match-close]');
+    const workspaceMatchTitle = workspaceMatchModal.querySelector('[data-workspace-match-modal-title]');
+    const workspaceMatchSubtitle = workspaceMatchModal.querySelector('[data-workspace-match-modal-subtitle]');
+    const workspaceMatchBody = workspaceMatchModal.querySelector('[data-workspace-match-modal-body]');
+
+    const openWorkspaceMatchModal = ({ templateId, title = '', subtitle = '' }) => {
+        const template = templateId ? document.getElementById(templateId) : null;
+        if (!template || !workspaceMatchBody) {
+            return;
+        }
+
+        if (workspaceMatchTitle) {
+            workspaceMatchTitle.textContent = title || template.dataset.matchModalTitle || '';
+        }
+
+        if (workspaceMatchSubtitle) {
+            workspaceMatchSubtitle.textContent = subtitle || template.dataset.matchModalSubtitle || '';
+        }
+
+        workspaceMatchBody.innerHTML = template.innerHTML;
+        openDashboardModal(workspaceMatchModal);
+    };
+
+    workspaceMatchButtons.forEach((button) => {
+        button.addEventListener('click', () => openWorkspaceMatchModal({
+            templateId: button.dataset.matchTemplateId,
+            title: button.dataset.matchModalTitle || '',
+            subtitle: button.dataset.matchModalSubtitle || '',
+        }));
+    });
+
+    workspaceMatchCloseButtons.forEach((button) => {
+        button.addEventListener('click', () => closeDashboardModal(workspaceMatchModal));
+    });
+
+    workspaceMatchModal.addEventListener('click', (event) => {
+        if (event.target === workspaceMatchModal) {
+            closeDashboardModal(workspaceMatchModal);
+        }
+    });
+
+    if (workspaceMatchModal.dataset.openTemplateId) {
+        openWorkspaceMatchModal({
+            templateId: workspaceMatchModal.dataset.openTemplateId,
+            title: workspaceMatchModal.dataset.openTitle || '',
+            subtitle: workspaceMatchModal.dataset.openSubtitle || '',
+        });
+    }
+}
+
+function bindDashboardEventModal() {
+    const modal = document.querySelector('[data-event-modal]');
+    if (!modal || modal.dataset.dashboardBound === 'true') {
+        return;
+    }
+
+    modal.dataset.dashboardBound = 'true';
+
+    const modalBody = modal.querySelector('[data-event-modal-body]');
+    const closeButton = modal.querySelector('[data-event-modal-close]');
+
+    const openModal = (trigger) => {
+        const templateId = trigger.dataset.eventPreviewTemplateId;
+        const template = templateId ? document.getElementById(templateId) : null;
+        if (!template || !modalBody) {
+            return;
+        }
+
+        modalBody.innerHTML = template.innerHTML;
+        openDashboardModal(modal);
+    };
+
+    document.querySelectorAll('[data-event-preview-open]').forEach((card) => {
+        card.addEventListener('click', () => openModal(card));
+    });
+
+    closeButton?.addEventListener('click', () => closeDashboardModal(modal));
+
+    modal.addEventListener('click', (event) => {
+        if (event.target === modal) {
+            closeDashboardModal(modal);
+        }
+    });
+}
+
+function bindDashboardLeaderboardProfileModal() {
+    const leaderboardProfileModal = document.querySelector('[data-leaderboard-profile-modal]');
+    if (!leaderboardProfileModal || leaderboardProfileModal.dataset.dashboardBound === 'true') {
+        return;
+    }
+
+    leaderboardProfileModal.dataset.dashboardBound = 'true';
+
+    const openButtons = document.querySelectorAll('[data-leaderboard-profile-open]');
+    const closeButton = leaderboardProfileModal.querySelector('[data-leaderboard-profile-close]');
+    const modalBody = leaderboardProfileModal.querySelector('[data-leaderboard-profile-body]');
+
+    const openLeaderboardProfileModal = (trigger) => {
+        const templateId = trigger.dataset.leaderboardProfileTemplateId;
+        const template = templateId ? document.getElementById(templateId) : null;
+        if (!template || !modalBody) {
+            return;
+        }
+
+        modalBody.innerHTML = template.innerHTML;
+        openDashboardModal(leaderboardProfileModal);
+    };
+
+    openButtons.forEach((button) => {
+        button.addEventListener('click', () => openLeaderboardProfileModal(button));
+    });
+
+    closeButton?.addEventListener('click', () => closeDashboardModal(leaderboardProfileModal));
+
+    leaderboardProfileModal.addEventListener('click', (event) => {
+        if (event.target === leaderboardProfileModal) {
+            closeDashboardModal(leaderboardProfileModal);
+        }
+    });
+}

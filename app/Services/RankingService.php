@@ -113,6 +113,12 @@ class RankingService
                 'losses' => 0,
                 'matches' => 0,
                 'score_sum' => 0,
+                'finish_counts' => [
+                    'spin' => 0,
+                    'burst' => 0,
+                    'over' => 0,
+                    'extreme' => 0,
+                ],
             ],
         ]);
 
@@ -124,7 +130,7 @@ class RankingService
                 $query->whereIn('player1_id', $playerIds)
                     ->orWhereIn('player2_id', $playerIds);
             })
-            ->get(['player1_id', 'player2_id', 'winner_id', 'player1_score', 'player2_score']);
+            ->get();
 
         foreach ($matches as $match) {
             foreach ([
@@ -147,6 +153,27 @@ class RankingService
 
                 $matchStats->put($side['id'], $stats);
             }
+
+            foreach ($match->battleResults() as $battle) {
+                $finishType = (string) ($battle['type'] ?? 'spin');
+                $winnerSlot = (int) ($battle['winner'] ?? 0);
+                $winnerPlayerId = $winnerSlot === 1
+                    ? (int) $match->player1_id
+                    : ($winnerSlot === 2 ? (int) $match->player2_id : 0);
+
+                if (! $winnerPlayerId || ! $matchStats->has($winnerPlayerId)) {
+                    continue;
+                }
+
+                $stats = $matchStats->get($winnerPlayerId);
+
+                if (! array_key_exists($finishType, $stats['finish_counts'])) {
+                    continue;
+                }
+
+                $stats['finish_counts'][$finishType]++;
+                $matchStats->put($winnerPlayerId, $stats);
+            }
         }
 
         return $leaderboard->mapWithKeys(function ($row) use ($players, $podiumCounts, $awardCounts, $mostUsedBeys, $matchStats): array {
@@ -157,8 +184,18 @@ class RankingService
                 'losses' => 0,
                 'matches' => 0,
                 'score_sum' => 0,
+                'finish_counts' => [
+                    'spin' => 0,
+                    'burst' => 0,
+                    'over' => 0,
+                    'extreme' => 0,
+                ],
             ]);
             $mostUsed = $mostUsedBeys->get($playerId, ['name' => null, 'count' => 0]);
+            $bestFinish = collect($stats['finish_counts'])
+                ->sortDesc()
+                ->keys()
+                ->first(fn (string $type) => ((int) ($stats['finish_counts'][$type] ?? 0)) > 0);
 
             return [
                 $playerId => [
@@ -183,6 +220,7 @@ class RankingService
                         : null,
                     'most_used_bey' => $mostUsed['name'],
                     'most_used_bey_count' => (int) ($mostUsed['count'] ?? 0),
+                    'best_finish' => $bestFinish,
                 ],
             ];
         });

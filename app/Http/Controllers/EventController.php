@@ -36,8 +36,7 @@ class EventController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $data = $this->validateEventData($request);
-        $creator = $this->resolveCreator($data['created_by_nickname']);
-        $event = Event::query()->create($this->buildEventPayload($data, $creator->id));
+        $event = Event::query()->create($this->buildEventPayload($data, $request->user()->id));
 
         return $this->redirectTarget($request, 'events.show', [$event], $event)
             ->with('status', 'Event created successfully.');
@@ -54,9 +53,20 @@ class EventController extends Controller
             return $redirect;
         }
 
-        $data = $this->validateEventData($request);
-        $creator = $this->resolveCreator($data['created_by_nickname']);
-        $event->update($this->buildEventPayload($data, $creator->id, $event));
+        $data = $this->validateEventData(
+            $request,
+            $event->canEditSwissSettingsAfterStart() ? $event : null
+        );
+
+        if ($redirect = $this->ensureStartedEventUpdateOnlyTouchesSwissSettings($request, $event, $data)) {
+            return $redirect;
+        }
+
+        $event->update($this->buildEventPayload(
+            $data,
+            $event->created_by ?: $request->user()->id,
+            $event
+        ));
 
         return $this->redirectTarget($request, 'events.show', [$event], $event)
             ->with('status', 'Event updated successfully.');
@@ -613,21 +623,37 @@ class EventController extends Controller
         return $this->redirectTarget($request, 'events.show', [$event], $event)->with('status', 'Match deleted.');
     }
 
-    private function validateEventData(Request $request): array
+    private function validateEventData(Request $request, ?Event $event = null): array
     {
-        return $request->validate([
+        $data = $request->all();
+
+        if ($event) {
+            $data = array_merge([
+                'title' => $event->title,
+                'description' => $event->description,
+                'event_type_id' => $event->event_type_id,
+                'bracket_type' => $event->bracket_type,
+                'swiss_rounds' => $event->swiss_rounds,
+                'top_cut_size' => $event->top_cut_size,
+                'is_lock_deck' => $event->is_lock_deck,
+                'date' => optional($event->date)->format('Y-m-d'),
+                'location' => $event->location,
+                'status' => $event->status,
+            ], $data);
+        }
+
+        return validator($data, [
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'event_type_id' => ['required', 'exists:event_types,id'],
             'bracket_type' => ['required', 'in:single_elim,swiss_single_elim'],
-            'swiss_rounds' => [Rule::requiredIf(fn () => $request->input('bracket_type') === 'swiss_single_elim'), 'nullable', 'integer', 'min:1', 'max:12'],
-            'top_cut_size' => [Rule::requiredIf(fn () => $request->input('bracket_type') === 'swiss_single_elim'), 'nullable', 'integer', 'in:2,4,8,16,32,64'],
+            'swiss_rounds' => [Rule::requiredIf(fn () => ($data['bracket_type'] ?? null) === 'swiss_single_elim'), 'nullable', 'integer', 'min:1', 'max:12'],
+            'top_cut_size' => [Rule::requiredIf(fn () => ($data['bracket_type'] ?? null) === 'swiss_single_elim'), 'nullable', 'integer', 'in:2,4,8,16,32,64'],
             'is_lock_deck' => ['nullable', 'boolean'],
             'date' => ['required', 'date'],
             'location' => ['nullable', 'string', 'max:255'],
             'status' => ['required', 'in:upcoming,finished'],
-            'created_by_nickname' => ['required', 'string', 'max:255'],
-        ]);
+        ])->validate();
     }
 
     private function buildEventPayload(array $data, int $creatorId, ?Event $existingEvent = null): array
@@ -661,16 +687,6 @@ class EventController extends Controller
             ->where('event_id', $eventId)
             ->where('player_id', $playerId)
             ->exists();
-    }
-
-    private function resolveCreator(string $nickname): User
-    {
-        $nickname = trim($nickname);
-
-        return User::query()->firstOrCreate(
-            ['nickname' => $nickname],
-            $this->autoCreatedUserAttributes($nickname)
-        );
     }
 
     private function autoCreatedUserAttributes(string $nickname): array
@@ -1031,9 +1047,45 @@ class EventController extends Controller
             return null;
         }
 
+        if ($event->canEditSwissSettingsAfterStart()) {
+            return null;
+        }
+
+        $lockedMessage = $event->usesSwissBracket() && $event->hasGeneratedTopCut()
+            ? 'Swiss rounds and top cut size are locked once top cut has been generated.'
+            : 'Event details are locked once bracket play has started.';
+
         return $this->redirectTarget($request, 'events.edit', [$event], $event)
             ->withErrors([
-                'event_locked' => 'Event details are locked once bracket play has started.',
+                'event_locked' => $lockedMessage,
+            ]);
+    }
+
+    private function ensureStartedEventUpdateOnlyTouchesSwissSettings(
+        Request $request,
+        Event $event,
+        array $data
+    ): ?RedirectResponse {
+        if (! $event->canEditSwissSettingsAfterStart()) {
+            return null;
+        }
+
+        $lockedFieldsChanged = (string) $data['title'] !== (string) $event->title
+            || (string) ($data['description'] ?? '') !== (string) ($event->description ?? '')
+            || (int) $data['event_type_id'] !== (int) $event->event_type_id
+            || (string) $data['bracket_type'] !== (string) $event->bracket_type
+            || (bool) ($data['is_lock_deck'] ?? false) !== (bool) $event->is_lock_deck
+            || (string) $data['date'] !== optional($event->date)->format('Y-m-d')
+            || (string) ($data['location'] ?? '') !== (string) ($event->location ?? '')
+            || (string) $data['status'] !== (string) $event->status;
+
+        if (! $lockedFieldsChanged) {
+            return null;
+        }
+
+        return $this->redirectTarget($request, 'events.edit', [$event], $event)
+            ->withErrors([
+                'event_locked' => 'Only Swiss rounds and top cut size can be changed until top cut is generated.',
             ]);
     }
 

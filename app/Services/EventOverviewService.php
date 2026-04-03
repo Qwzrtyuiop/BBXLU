@@ -38,6 +38,7 @@ class EventOverviewService
             'latestEvent' => $latestEvent,
             'latestEventPlacements' => $this->latestEventPlacements($latestEvent),
             'awardLeaders' => $this->awardLeaders(),
+            'metaStats' => $this->metaStats(),
         ];
     }
 
@@ -104,12 +105,14 @@ class EventOverviewService
     public function dashboardData(?int $selectedEventId = null, string $activePanel = 'overview'): array
     {
         $sessionActiveEventId = $this->sessionActiveEventId();
+        $liveEvents = $this->dashboardLiveEvents();
         $ongoingTournament = $this->activeDashboardEvent();
         $latestEvent = $this->latestEvent();
         $selectedEvent = $this->selectedEvent($selectedEventId, $activePanel, $ongoingTournament, $latestEvent, $sessionActiveEventId);
 
         $data = [
             'stats' => $this->stats(includeUpcoming: true),
+            'liveEvents' => $liveEvents,
             'ongoingTournament' => $ongoingTournament,
             'dashboardSessionActiveEventId' => $sessionActiveEventId,
             'latestEvent' => $latestEvent,
@@ -222,6 +225,19 @@ class EventOverviewService
             ->orderBy('date')
             ->orderByDesc('id')
             ->first();
+    }
+
+    private function dashboardLiveEvents(): Collection
+    {
+        return Event::query()
+            ->with(['eventType', 'creator'])
+            ->withCount('participants')
+            ->where('is_active', true)
+            ->whereIn('status', ['upcoming', 'finished'])
+            ->orderByRaw("CASE WHEN status = 'upcoming' THEN 0 ELSE 1 END")
+            ->orderBy('date')
+            ->orderByDesc('id')
+            ->get();
     }
 
     private function latestEvent(): ?Event
@@ -524,8 +540,8 @@ class EventOverviewService
             ->join('players as p', 'p.id', '=', 'ea.player_id')
             ->join('users as u', 'u.id', '=', 'p.user_id')
             ->whereIn('a.name', collect($awardCategories)->pluck('award_name'))
-            ->selectRaw('a.name as award_name, u.nickname, count(*) as total')
-            ->groupBy('a.name', 'u.nickname')
+            ->selectRaw('a.name as award_name, p.id as player_id, u.nickname, count(*) as total')
+            ->groupBy('a.name', 'p.id', 'u.nickname')
             ->orderBy('a.name')
             ->orderByDesc('total')
             ->orderBy('u.nickname')
@@ -540,10 +556,100 @@ class EventOverviewService
                 'title' => $category['title'],
                 'description' => $category['description'],
                 'award_name' => $category['award_name'],
+                'player_id' => $leader?->player_id ? (int) $leader->player_id : null,
                 'nickname' => $leader?->nickname,
                 'total' => $leader?->total ?? 0,
             ];
         });
+    }
+
+    private function metaStats(): array
+    {
+        $participantDecks = EventParticipant::query()->get();
+        $completedMatches = EventMatch::query()
+            ->with(['player1StadiumSide', 'player2StadiumSide'])
+            ->where('status', 'completed')
+            ->where('is_bye', false)
+            ->whereNotNull('player2_id')
+            ->get();
+
+        $beyUsage = $participantDecks
+            ->flatMap(function (EventParticipant $participant) {
+                return collect([
+                    $participant->deck_bey1,
+                    $participant->deck_bey2,
+                    $participant->deck_bey3,
+                ])->filter(fn (?string $bey) => filled($bey));
+            })
+            ->map(fn (string $bey) => trim($bey))
+            ->filter()
+            ->countBy();
+
+        $mostUsedBey = $beyUsage->sortDesc()->keys()->first();
+        $finishTypeCounts = collect([
+            'spin' => 0,
+            'burst' => 0,
+            'over' => 0,
+            'extreme' => 0,
+        ]);
+        $sideRecords = [
+            'X' => ['wins' => 0, 'losses' => 0],
+            'B' => ['wins' => 0, 'losses' => 0],
+        ];
+
+        foreach ($completedMatches as $match) {
+            foreach ($match->battleResults() as $battle) {
+                $type = (string) ($battle['type'] ?? 'spin');
+                if (! $finishTypeCounts->has($type)) {
+                    continue;
+                }
+
+                $finishTypeCounts->put($type, ((int) $finishTypeCounts->get($type, 0)) + 1);
+            }
+
+            $player1Side = $match->player1StadiumSide?->code;
+            $player2Side = $match->player2StadiumSide?->code;
+
+            if (in_array($player1Side, ['X', 'B'], true)) {
+                if ($match->winner_id === $match->player1_id) {
+                    $sideRecords[$player1Side]['wins']++;
+                } elseif ($match->winner_id === $match->player2_id) {
+                    $sideRecords[$player1Side]['losses']++;
+                }
+            }
+
+            if (in_array($player2Side, ['X', 'B'], true)) {
+                if ($match->winner_id === $match->player2_id) {
+                    $sideRecords[$player2Side]['wins']++;
+                } elseif ($match->winner_id === $match->player1_id) {
+                    $sideRecords[$player2Side]['losses']++;
+                }
+            }
+        }
+
+        $totalFinishes = $finishTypeCounts->sum();
+        $mostCommonFinish = $finishTypeCounts
+            ->sortDesc()
+            ->keys()
+            ->first(fn (string $type) => $finishTypeCounts->get($type) > 0);
+
+        return [
+            'most_used_bey' => $mostUsedBey,
+            'most_used_bey_count' => $mostUsedBey ? (int) $beyUsage->get($mostUsedBey) : 0,
+            'most_common_finish' => $mostCommonFinish,
+            'most_common_finish_count' => $mostCommonFinish ? (int) $finishTypeCounts->get($mostCommonFinish) : 0,
+            'finish_percentages' => $finishTypeCounts
+                ->map(fn (int $count) => $totalFinishes > 0 ? round(($count / $totalFinishes) * 100, 1) : null)
+                ->all(),
+            'x_side_record' => $sideRecords['X']['wins'].'-'.$sideRecords['X']['losses'],
+            'b_side_record' => $sideRecords['B']['wins'].'-'.$sideRecords['B']['losses'],
+            'x_side_win_rate' => array_sum($sideRecords['X']) > 0
+                ? round(($sideRecords['X']['wins'] / array_sum($sideRecords['X'])) * 100, 1)
+                : null,
+            'b_side_win_rate' => array_sum($sideRecords['B']) > 0
+                ? round(($sideRecords['B']['wins'] / array_sum($sideRecords['B'])) * 100, 1)
+                : null,
+        ];
     }
 
     private function matchHasRenderablePlayers(EventMatch $match): bool

@@ -1,6 +1,7 @@
 <x-layouts.app :title="'Dashboard | BBXLU'" :fullScreen="true" :hideTopSelectors="true" :hideFrameHeader="true" :hideGlobalFeedback="true">
     @php
         $sessionActiveEventId = $dashboardSessionActiveEventId;
+        $liveEvents = $liveEvents ?? collect();
         $currentFocus = $ongoingTournament;
         $currentFocusLink = $currentFocus ? route('dashboard', ['panel' => 'workspace', 'event' => $currentFocus->id]) : route('dashboard', ['panel' => 'events']);
         $overviewEvent = $ongoingTournament ?? $upcomingEvents->first() ?? $selectedEvent ?? $latestEvent;
@@ -22,8 +23,31 @@
             ? $upcomingEvents->reject(fn ($event) => $event->id === $overviewEvent->id)
             : $upcomingEvents;
         $overviewEventStarted = $overviewEvent?->hasStarted() ?? false;
+        $overviewEventControlLabel = $overviewEventIsWorkspaceFocus
+            ? 'Open Workspace'
+            : ($overviewEvent && $overviewEvent->status === 'finished' ? 'Open Event Record' : 'Open Event Tools');
+        $overviewEventDeckModeLabel = $overviewEvent
+            ? ($overviewEvent->usesLockedDecks() ? 'Locked Decks' : 'Open Decks')
+            : 'TBD';
+        $overviewEventBracketLabel = $overviewEvent
+            ? ($overviewEventStarted ? $overviewEvent->bracketLabel() : 'Not Started')
+            : 'No Bracket';
+        $overviewEventFocusLabel = $overviewEvent
+            ? ($overviewEventIsWorkspaceFocus ? 'Workspace Ready' : ($overviewEvent->status === 'finished' ? 'Archive View' : 'Directory View'))
+            : 'Idle';
+        $overviewEventLiveLink = $overviewEvent ? route('live.viewer.event', $overviewEvent) : route('live.viewer');
+        $latestEventDashboardLink = $latestEvent
+            ? route('dashboard', ['panel' => 'events', 'event' => $latestEvent->id])
+            : route('dashboard', ['panel' => 'events']);
+        $latestEventLiveLink = $latestEvent ? route('live.viewer.event', $latestEvent) : route('live.viewer');
+        $overviewTopRows = $leaderboard->take(5);
+        $overviewTopLeader = $overviewTopRows->first();
         $selectedEventStarted = $selectedEvent?->hasStarted() ?? false;
+        $selectedEventCanEditSwissSettings = $selectedEvent?->canEditSwissSettingsAfterStart() ?? false;
         $canRegisterOverviewEvent = $overviewEvent && $overviewEvent->status === 'upcoming' && ! $overviewEventStarted;
+        $overviewRegistrationLabel = $overviewEvent
+            ? ($canRegisterOverviewEvent ? 'Open' : ($overviewEventStarted ? 'Closed' : 'Unavailable'))
+            : 'Unavailable';
         $hasParticipantRegistrationErrors = $errors->has('nickname')
             || $errors->has('selected_nicknames')
             || $errors->has('selected_nicknames.*');
@@ -83,8 +107,51 @@
 
     <div
         data-dashboard-shell
-        class="mx-auto grid h-[calc(100svh-1.9rem)] max-w-[112rem] grid-rows-[auto_minmax(0,1fr)] gap-2.5 overflow-hidden"
+        data-dashboard-panel="{{ $activePanel }}"
+        data-dashboard-route="{{ route('dashboard') }}"
+        data-dashboard-error-state="{{ $dashboardErrors->isNotEmpty() ? 'true' : 'false' }}"
+        class="relative mx-auto grid min-h-[calc(100svh-1.9rem)] max-w-[112rem] gap-2.5 overflow-y-auto xl:h-[calc(100svh-1.9rem)] xl:grid-rows-[auto_minmax(0,1fr)]"
     >
+        <div data-dashboard-loader class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/88 backdrop-blur-sm transition-opacity duration-200">
+            <div class="grid justify-items-center gap-4">
+                <div class="relative h-14 w-14">
+                    <div class="absolute inset-0 rounded-full border-4 border-cyan-400/15"></div>
+                    <div class="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-cyan-300 border-r-amber-300"></div>
+                </div>
+                <div class="text-center">
+                    <p class="type-label text-[11px] text-cyan-200">Loading Dashboard</p>
+                    <p data-dashboard-loader-label class="mt-1 text-[11px] text-slate-400">Syncing admin view...</p>
+                </div>
+            </div>
+        </div>
+
+        <div data-dashboard-warning class="pointer-events-none fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/92 px-4 opacity-0 backdrop-blur-sm transition-opacity duration-200" aria-hidden="true">
+            <div class="w-full max-w-xl border border-rose-400/45 bg-[linear-gradient(160deg,rgba(127,29,29,0.24)_0%,rgba(15,23,42,0.96)_55%,rgba(2,6,23,0.98)_100%)] p-5 shadow-[0_24px_60px_rgba(2,6,23,0.72)] sm:p-6">
+                <div class="flex items-start gap-4">
+                    <div class="mt-0.5 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-rose-400/45 bg-rose-500/12 text-xl text-rose-200">
+                        !
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <p class="type-kicker text-[10px] text-rose-200/80">Warning</p>
+                        <h3 data-dashboard-warning-title class="type-headline mt-1 text-[1.35rem] leading-tight text-amber-100">Dashboard update needs attention</h3>
+                        <p data-dashboard-warning-message class="mt-2 text-sm text-slate-300">The dashboard could not finish this request. You can retry the action or reload the page.</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 flex flex-wrap gap-2">
+                    <button type="button" data-dashboard-warning-retry class="type-label inline-flex items-center justify-center border border-amber-400/70 bg-amber-400/12 px-3 py-2 text-[10px] text-amber-100 transition hover:bg-amber-400/20">
+                        Retry
+                    </button>
+                    <button type="button" data-dashboard-warning-reload class="type-label inline-flex items-center justify-center border border-cyan-400/70 bg-cyan-400/10 px-3 py-2 text-[10px] text-cyan-100 transition hover:bg-cyan-400/18">
+                        Reload Page
+                    </button>
+                    <button type="button" data-dashboard-warning-dismiss class="type-label inline-flex items-center justify-center border border-slate-700 bg-slate-950/70 px-3 py-2 text-[10px] text-slate-200 transition hover:border-slate-500 hover:text-slate-100">
+                        Continue
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <section class="border border-cyan-400/30 bg-[linear-gradient(145deg,rgba(8,47,73,0.95)_0%,rgba(2,6,23,0.96)_45%,rgba(17,24,39,0.98)_100%)] px-4 py-2.5 shadow-[0_18px_42px_rgba(2,6,23,0.56)] sm:px-5">
             <div class="grid gap-2.5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
                 <div>
@@ -114,13 +181,13 @@
                     </div>
                 </div>
 
-                <div class="grid gap-1.5 sm:grid-cols-2 xl:flex xl:flex-nowrap xl:items-start xl:justify-end xl:justify-self-end">
+                <div class="grid gap-1.5 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-start xl:justify-end xl:justify-self-end 2xl:flex-nowrap">
                     <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label inline-flex items-center justify-center border border-amber-400/70 bg-amber-400/12 px-2.5 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">Create Or Edit Event</a>
                     @if ($currentFocus)
                         <a href="{{ $currentFocusLink }}" class="type-label inline-flex items-center justify-center border border-slate-700 bg-slate-950/55 px-2.5 py-1.5 text-[9px] text-slate-100 transition hover:border-cyan-400 hover:text-cyan-200">Open Current Workspace</a>
                     @endif
                     <a href="{{ route('home') }}" class="type-label inline-flex items-center justify-center border border-slate-700 bg-slate-950/55 px-2.5 py-1.5 text-[9px] text-slate-100 transition hover:border-emerald-400 hover:text-emerald-200">Preview Home</a>
-                    <form action="{{ route('logout') }}" method="POST">
+                    <form action="{{ route('logout') }}" method="POST" data-dashboard-soft-ignore>
                         @csrf
                         <button class="type-label inline-flex w-full items-center justify-center border border-rose-500/60 bg-rose-500/10 px-2.5 py-1.5 text-[9px] text-rose-200 transition hover:bg-rose-500/20">Logout</button>
                     </form>
@@ -153,7 +220,7 @@
         </section>
 
         <section class="grid min-h-0 gap-2.5 xl:grid-cols-[11.25rem_minmax(0,1fr)]">
-            <aside class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2.5 border border-slate-800/85 bg-[linear-gradient(160deg,rgba(2,6,23,0.96)_0%,rgba(15,23,42,0.98)_100%)] p-2.5 shadow-[0_16px_36px_rgba(2,6,23,0.34)]">
+            <aside class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-2.5 overflow-y-auto border border-slate-800/85 bg-[linear-gradient(160deg,rgba(2,6,23,0.96)_0%,rgba(15,23,42,0.98)_100%)] p-2.5 shadow-[0_16px_36px_rgba(2,6,23,0.34)]">
                 <div>
                     <p class="type-kicker text-[10px] text-slate-500">Toolbar</p>
                 </div>
@@ -187,17 +254,31 @@
 
                 <div class="grid gap-2.5">
                     <article class="border border-emerald-400/30 bg-[linear-gradient(160deg,rgba(6,78,59,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
-                        <p class="type-kicker text-[10px] text-emerald-300/75">Active Event</p>
-                        <p class="type-title mt-1.5 line-clamp-2 text-sm text-slate-100">{{ $currentFocus?->title ?? 'No active event' }}</p>
-                        @if ($currentFocus)
-                            <p class="type-label mt-1.5 truncate text-[9px] text-slate-500">{{ $currentFocus->status }} - {{ $currentFocus->date->format('d M') }}</p>
-                            <a href="{{ $currentFocusLink }}" class="type-label mt-2 inline-flex w-full items-center justify-center border border-slate-700 px-2 py-1 text-[10px] text-slate-100 transition hover:border-amber-400 hover:text-amber-200">Open</a>
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="type-kicker text-[10px] text-emerald-300/75">{{ $liveEvents->count() === 1 ? 'Live Event' : 'Live Events' }}</p>
+                            @if ($liveEvents->isNotEmpty())
+                                <span class="type-label border border-emerald-400/30 bg-emerald-500/10 px-1.5 py-0.5 text-[8px] text-emerald-100">{{ $liveEvents->count() }}</span>
+                            @endif
+                        </div>
+                        @if ($liveEvents->isNotEmpty())
+                            <div class="mt-2 space-y-2">
+                                @foreach ($liveEvents as $liveEvent)
+                                    <a href="{{ route('dashboard', ['panel' => $sessionActiveEventId === $liveEvent->id ? 'workspace' : 'events', 'event' => $liveEvent->id]) }}" class="group block border border-slate-800/80 bg-slate-950/65 px-2.5 py-2 transition hover:border-emerald-400/55">
+                                        <p class="type-title line-clamp-2 text-sm text-slate-100">{{ $liveEvent->title }}</p>
+                                        <p class="type-label mt-1 truncate text-[9px] text-slate-500">{{ \Illuminate\Support\Str::headline($liveEvent->status) }} - {{ $liveEvent->date->format('d M') }}</p>
+                                        <div class="mt-2 flex items-center justify-between gap-2">
+                                            <span class="type-label text-[8px] text-emerald-200/80">{{ optional($liveEvent->eventType)->name ?: 'Event' }}</span>
+                                            <span class="type-label text-[9px] text-slate-300 transition group-hover:text-emerald-200">Open</span>
+                                        </div>
+                                    </a>
+                                @endforeach
+                            </div>
                         @else
-                            <p class="type-body mt-1.5 text-xs text-slate-400">Set one from the Events panel to unlock the workspace.</p>
+                            <p class="type-body mt-1.5 text-xs text-slate-400">Toggle events live from the Events panel and they will show here.</p>
                         @endif
                     </article>
 
-                    <article class="border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
+                    <!-- <article class="border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
                         <p class="type-kicker text-[10px] text-cyan-300/75">Latest Winner</p>
                         @if ($latestChampion && $latestEvent)
                             <p class="type-title mt-1.5 line-clamp-2 text-sm text-slate-100">{{ $latestChampion->player?->user?->nickname ?? 'Unknown player' }}</p>
@@ -205,108 +286,195 @@
                         @else
                             <p class="type-body mt-1.5 text-xs text-slate-400">Waiting for a finished event.</p>
                         @endif
-                    </article>
+                    </article> -->
                 </div>
             </aside>
 
-            <section class="min-w-0 min-h-0 overflow-hidden border border-slate-800/85 bg-[linear-gradient(160deg,rgba(2,6,23,0.96)_0%,rgba(15,23,42,0.98)_100%)] p-2.5 shadow-[0_16px_36px_rgba(2,6,23,0.34)] sm:p-3">
+            <section data-dashboard-main class="min-w-0 min-h-0 overflow-x-hidden overflow-y-auto border border-slate-800/85 bg-[linear-gradient(160deg,rgba(2,6,23,0.96)_0%,rgba(15,23,42,0.98)_100%)] p-2.5 shadow-[0_16px_36px_rgba(2,6,23,0.34)] sm:p-3">
             @if ($activePanel === 'overview')
-            <div class="grid h-full items-start gap-2.5 xl:grid-cols-[minmax(0,1.42fr)_13.25rem]">
-                <article class="grid min-h-0 content-start gap-2.5">
-                    <div class="self-start border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.92)_100%)] p-3">
-                        <div class="flex flex-wrap items-start justify-between gap-3">
-                            <div class="min-w-0">
-                                <p class="type-kicker text-[10px] text-cyan-300/75">{{ $overviewEventLabel }}</p>
-                                <h3 class="type-headline mt-1 text-[1.35rem] leading-tight text-cyan-100">
-                                    {{ $overviewEvent?->title ?? 'No scheduled event yet' }}
-                                </h3>
+            <div class="grid gap-3 2xl:grid-cols-[minmax(0,1.5fr)_minmax(20rem,0.92fr)]">
+                <div class="grid min-h-0 content-start gap-3">
+                    <article class="relative overflow-hidden border border-cyan-400/35 bg-[linear-gradient(160deg,rgba(8,47,73,0.26)_0%,rgba(2,6,23,0.95)_42%,rgba(2,6,23,0.99)_100%)] p-4 shadow-[0_20px_42px_rgba(2,6,23,0.42)]">
+                        <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-300/0 via-cyan-300/80 to-cyan-300/0"></div>
+                        <div class="pointer-events-none absolute -right-12 top-5 h-28 w-28 rounded-full bg-cyan-400/10 blur-3xl"></div>
+                        <div class="relative z-10">
+                            <div class="flex flex-wrap items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <p class="type-kicker text-[10px] text-cyan-300/75">Overview</p>
+                                    <h3 class="type-headline mt-1 text-[1.6rem] leading-tight text-cyan-100">
+                                        {{ $overviewEvent?->title ?? 'No scheduled event yet' }}
+                                    </h3>
+                                    @if ($overviewEvent)
+                                        <p class="type-body mt-2 text-[12px] text-slate-400">
+                                            {{ $overviewEventLabel }} - {{ $overviewEvent->date->format('D, d M Y') }}
+                                            @if ($overviewEvent->eventType)
+                                                - {{ $overviewEvent->eventType->name }}
+                                            @endif
+                                            @if ($overviewEvent->location)
+                                                - {{ $overviewEvent->location }}
+                                            @endif
+                                        </p>
+                                    @else
+                                        <p class="type-body mt-2 text-[12px] text-slate-400">Create an event first so the dashboard can track registration, queue, and bracket activity.</p>
+                                    @endif
+                                </div>
+
                                 @if ($overviewEvent)
-                                    <p class="type-body mt-1 text-[12px] text-slate-400">
-                                        {{ $overviewEvent->date->format('D, d M Y') }}
-                                        @if ($overviewEvent->eventType)
-                                            - {{ $overviewEvent->eventType->name }}
+                                    <div class="flex flex-wrap items-center justify-end gap-1.5">
+                                        <span class="type-label border border-cyan-400/35 bg-cyan-500/10 px-2.5 py-1 text-[9px] text-cyan-100">{{ $overviewEventFocusLabel }}</span>
+                                        <span class="type-label border border-amber-400/35 bg-amber-500/10 px-2.5 py-1 text-[9px] text-amber-100">{{ $overviewRegistrationLabel }} Registration</span>
+                                        @if ($overviewEvent->is_active)
+                                            <span class="type-label border border-emerald-400/45 bg-emerald-500/10 px-2.5 py-1 text-[9px] text-emerald-100">Live Slot</span>
                                         @endif
-                                        @if ($overviewEvent->location)
-                                            - {{ $overviewEvent->location }}
-                                        @endif
-                                    </p>
+                                    </div>
                                 @endif
                             </div>
 
                             @if ($overviewEvent)
-                                <a href="{{ $overviewEventLink }}" class="type-label border border-slate-700 px-2 py-1 text-[9px] text-slate-100 transition hover:border-amber-400 hover:text-amber-200">
-                                    Open Workspace
-                                </a>
+                                <div class="mt-4 grid gap-3 2xl:grid-cols-[minmax(0,1.18fr)_minmax(17.5rem,0.82fr)]">
+                                    <div class="min-w-0">
+                                        <p class="type-body text-[13px] leading-relaxed text-slate-300">
+                                            {{ \Illuminate\Support\Str::limit($overviewEvent->description ?: ($overviewEvent->location ?: 'No description available.'), 200) }}
+                                        </p>
+
+                                        <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                            <div class="border border-slate-700/80 bg-slate-950/55 px-3 py-2.5">
+                                                <p class="type-label text-[9px] text-slate-500">State</p>
+                                                <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ $overviewEventIsToday && $overviewEvent->status === 'upcoming' ? 'Today' : \Illuminate\Support\Str::headline($overviewEvent->status) }}</p>
+                                            </div>
+                                            <div class="border border-slate-700/80 bg-slate-950/55 px-3 py-2.5">
+                                                <p class="type-label text-[9px] text-slate-500">Deck Mode</p>
+                                                <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ $overviewEventDeckModeLabel }}</p>
+                                            </div>
+                                            <div class="border border-slate-700/80 bg-slate-950/55 px-3 py-2.5">
+                                                <p class="type-label text-[9px] text-slate-500">Bracket</p>
+                                                <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ $overviewEventBracketLabel }}</p>
+                                            </div>
+                                            <div class="border border-slate-700/80 bg-slate-950/55 px-3 py-2.5">
+                                                <p class="type-label text-[9px] text-slate-500">Players</p>
+                                                <p class="type-stat mt-1 text-[13px] text-amber-200">{{ $overviewEvent->participants_count ?? 0 }}</p>
+                                            </div>
+                                            <div class="border border-slate-700/80 bg-slate-950/55 px-3 py-2.5">
+                                                <p class="type-label text-[9px] text-slate-500">Venue</p>
+                                                <p class="type-body-strong mt-1 truncate text-[13px] text-slate-100">{{ $overviewEvent->location ?: 'TBA' }}</p>
+                                            </div>
+                                            <div class="border border-slate-700/80 bg-slate-950/55 px-3 py-2.5">
+                                                <p class="type-label text-[9px] text-slate-500">Control</p>
+                                                <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ $overviewEventControlLabel }}</p>
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-4 flex flex-wrap gap-2">
+                                            <a href="{{ $overviewEventLink }}" class="type-label inline-flex items-center justify-center border border-cyan-400/65 bg-cyan-500/10 px-3 py-2 text-[9px] text-cyan-100 transition hover:bg-cyan-500/18">
+                                                {{ $overviewEventControlLabel }}
+                                            </a>
+                                            @if ($canRegisterOverviewEvent)
+                                                @if ($overviewEvent->usesLockedDecks())
+                                                    <a href="{{ route('dashboard', ['panel' => 'workspace', 'event' => $overviewEvent->id]) }}" class="type-label inline-flex items-center justify-center border border-amber-400/70 bg-amber-400/12 px-3 py-2 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
+                                                        Register Locked Decks
+                                                    </a>
+                                                @else
+                                                    <button type="button" data-register-modal-open class="type-label inline-flex items-center justify-center border border-amber-400/70 bg-amber-400/12 px-3 py-2 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
+                                                        Register Players
+                                                    </button>
+                                                @endif
+                                            @endif
+                                            <a href="{{ $overviewEventLiveLink }}" class="type-label inline-flex items-center justify-center border border-emerald-400/55 bg-emerald-500/10 px-3 py-2 text-[9px] text-emerald-100 transition hover:bg-emerald-500/18">
+                                                Open Live Viewer
+                                            </a>
+                                            <a href="{{ route('dashboard', ['panel' => 'events', 'event' => $overviewEvent->id]) }}" class="type-label inline-flex items-center justify-center border border-slate-700 bg-slate-950/55 px-3 py-2 text-[9px] text-slate-100 transition hover:border-amber-400 hover:text-amber-200">
+                                                Manage Event
+                                            </a>
+                                        </div>
+
+                                        @if ($overviewEventStarted)
+                                            <p class="mt-3 text-[11px] text-rose-300">Registration is locked because bracket play has already started for this event.</p>
+                                        @elseif ($canRegisterOverviewEvent)
+                                            <p class="mt-3 text-[11px] text-emerald-300">Registration is open. This is the best place to bring the player list up to date before bracket generation.</p>
+                                        @endif
+                                    </div>
+
+                                    <div class="grid gap-2.5">
+                                        <article class="border border-cyan-400/20 bg-slate-950/45 p-3">
+                                            <p class="type-kicker text-[10px] text-cyan-300/75">Event Details</p>
+                                            <div class="mt-3 grid gap-2">
+                                                <div class="border border-slate-800/80 bg-slate-950/60 px-3 py-2">
+                                                    <p class="type-label text-[9px] text-slate-500">Created By</p>
+                                                    <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ optional($overviewEvent->creator)->nickname ?: 'System' }}</p>
+                                                </div>
+                                                <div class="border border-slate-800/80 bg-slate-950/60 px-3 py-2">
+                                                    <p class="type-label text-[9px] text-slate-500">Date Lock</p>
+                                                    <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ $overviewEventIsToday ? 'Today' : $overviewEvent->date->format('l') }}</p>
+                                                </div>
+                                                <div class="border border-slate-800/80 bg-slate-950/60 px-3 py-2">
+                                                    <p class="type-label text-[9px] text-slate-500">Queue Behind It</p>
+                                                    <p class="type-stat mt-1 text-[13px] text-amber-200">{{ $overviewQueueEvents->count() }}</p>
+                                                </div>
+                                            </div>
+                                        </article>
+
+                                        <article class="border border-amber-400/20 bg-[linear-gradient(160deg,rgba(251,191,36,0.09)_0%,rgba(2,6,23,0.9)_100%)] p-3">
+                                            <p class="type-kicker text-[10px] text-amber-300/75">Next Step</p>
+                                            @if ($canRegisterOverviewEvent)
+                                                <p class="type-title mt-2 text-[15px] text-amber-100">Complete registration and verify the deck mode before building the bracket.</p>
+                                                <p class="type-body mt-2 text-[12px] text-slate-400">Use the registration action below if names still need to be added, then jump into the event tools to start the round flow.</p>
+                                            @elseif ($overviewEvent && $overviewEventStarted && $overviewEvent->status === 'upcoming')
+                                                <p class="type-title mt-2 text-[15px] text-amber-100">Bracket play is already moving.</p>
+                                                <p class="type-body mt-2 text-[12px] text-slate-400">Open the workspace to record match results, manage rounds, and keep the live board accurate.</p>
+                                            @elseif ($overviewEvent && $overviewEvent->status === 'finished')
+                                                <p class="type-title mt-2 text-[15px] text-amber-100">This event is now in archive mode.</p>
+                                                <p class="type-body mt-2 text-[12px] text-slate-400">Review results, confirm awards, and move your attention to the next event in queue.</p>
+                                            @else
+                                                <p class="type-title mt-2 text-[15px] text-amber-100">Set the next event up for action.</p>
+                                                <p class="type-body mt-2 text-[12px] text-slate-400">Keep the event directory current so the workspace and homepage always reflect the right focus.</p>
+                                            @endif
+                                        </article>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="mt-4 flex flex-wrap gap-2">
+                                    <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label inline-flex items-center justify-center border border-amber-400/70 bg-amber-400/12 px-3 py-2 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
+                                        Create Event
+                                    </a>
+                                    <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label inline-flex items-center justify-center border border-slate-700 bg-slate-950/55 px-3 py-2 text-[9px] text-slate-100 transition hover:border-cyan-400 hover:text-cyan-200">
+                                        Open Events Directory
+                                    </a>
+                                </div>
                             @endif
                         </div>
+                    </article>
 
-                        @if ($overviewEvent)
-                            <p class="type-body mt-2 text-[13px] text-slate-300">
-                                {{ \Illuminate\Support\Str::limit($overviewEvent->description ?: ($overviewEvent->location ?: 'No description available.'), 150) }}
-                            </p>
-
-                            <div class="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-4">
-                                <div class="border border-slate-700/70 bg-slate-950/55 px-2 py-1.5">
-                                    <p class="type-label text-[9px] text-slate-500">Status</p>
-                                    <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ $overviewEventIsToday && $overviewEvent->status === 'upcoming' ? 'today' : $overviewEvent->status }}</p>
-                                </div>
-                                <div class="border border-slate-700/70 bg-slate-950/55 px-2 py-1.5">
-                                    <p class="type-label text-[9px] text-slate-500">Type</p>
-                                    <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ $overviewEvent->eventType->name }}</p>
-                                </div>
-                                <div class="border border-slate-700/70 bg-slate-950/55 px-2 py-1.5">
-                                    <p class="type-label text-[9px] text-slate-500">Players</p>
-                                    <p class="type-stat mt-1 text-[13px] text-amber-200">{{ $overviewEvent->participants_count ?? 0 }}</p>
-                                </div>
-                                <div class="border border-slate-700/70 bg-slate-950/55 px-2 py-1.5">
-                                    <p class="type-label text-[9px] text-slate-500">Venue</p>
-                                    <p class="type-body-strong mt-1 truncate text-[13px] text-slate-100">{{ $overviewEvent->location ?: 'TBA' }}</p>
-                                </div>
-                            </div>
-
-                            <div class="mt-2.5 flex flex-wrap gap-1.5">
-                                @if ($canRegisterOverviewEvent)
-                                    @if ($overviewEvent->usesLockedDecks())
-                                        <a href="{{ route('dashboard', ['panel' => 'workspace']) }}" class="type-label border border-amber-400/70 bg-amber-400/12 px-2.5 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
-                                            Register Locked Decks
-                                        </a>
-                                    @else
-                                        <button type="button" data-register-modal-open class="type-label border border-amber-400/70 bg-amber-400/12 px-2.5 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
-                                            Register Players
-                                        </button>
-                                    @endif
-                                @endif
-
-                                <a href="{{ $overviewEventLink }}" class="type-label border border-slate-700 bg-slate-950/55 px-2.5 py-1.5 text-[9px] text-slate-100 transition hover:border-cyan-400 hover:text-cyan-200">
-                                    View Event Tools
-                                </a>
-                            </div>
-
-                            @if ($overviewEventStarted)
-                                <p class="mt-2 text-[11px] text-rose-300">Registration is locked because bracket play has already started for this event.</p>
-                            @endif
-                        @else
-                            <p class="type-body mt-3 text-sm text-slate-400">Create an event first so the overview can track the next schedule and player registration.</p>
-                            <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label mt-3 inline-flex border border-amber-400/70 bg-amber-400/12 px-2.5 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">
-                                Create Event
-                            </a>
-                        @endif
-                    </div>
-
-                    <div class="grid min-h-0 gap-2.5 xl:grid-cols-[minmax(0,.68fr)_minmax(0,1.32fr)]">
-                        <article class="min-h-0 overflow-hidden border border-amber-400/30 bg-[linear-gradient(160deg,rgba(251,191,36,0.08)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
+                    <div class="grid min-h-0 gap-3 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                        <article class="min-h-0 overflow-hidden border border-amber-400/30 bg-[linear-gradient(160deg,rgba(251,191,36,0.08)_0%,rgba(2,6,23,0.92)_100%)] p-3">
                             <div class="flex items-center justify-between gap-2">
-                                <p class="type-title text-[13px] text-amber-100">Upcoming Events</p>
-                                <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label text-[9px] text-slate-300 hover:text-amber-200">Manage</a>
+                                <div>
+                                    <p class="type-kicker text-[10px] text-amber-300/75">Queue</p>
+                                    <h3 class="type-title mt-1 text-sm text-amber-100">Upcoming Events</h3>
+                                </div>
+                                <div class="text-right">
+                                    <p class="type-stat text-sm leading-none text-amber-200">{{ $overviewQueueEvents->count() }}</p>
+                                    <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label mt-1 block text-[9px] text-slate-300 hover:text-amber-200">Manage</a>
+                                </div>
                             </div>
-                            <div class="mt-2 space-y-1 overflow-y-auto no-scrollbar">
-                                @forelse ($overviewQueueEvents->take(3) as $event)
-                                    <a href="{{ route('dashboard', ['panel' => $sessionActiveEventId === $event->id ? 'workspace' : 'events', 'event' => $event->id]) }}" class="block border border-slate-800/80 bg-slate-950/65 px-2.5 py-1 transition hover:border-amber-400/55">
-                                        <p class="type-title truncate text-[12px] text-slate-100">{{ $event->title }}</p>
-                                        <p class="type-label mt-0.5 text-[8px] text-slate-500">{{ $event->date->format('d M') }} - {{ $event->eventType->name }}</p>
+                            <div class="mt-3 space-y-2">
+                                @forelse ($overviewQueueEvents->take(4) as $event)
+                                    <a href="{{ route('dashboard', ['panel' => $sessionActiveEventId === $event->id ? 'workspace' : 'events', 'event' => $event->id]) }}" class="group flex items-center gap-3 border border-slate-800/80 bg-slate-950/65 p-2.5 transition hover:border-amber-400/55 hover:bg-slate-950/80">
+                                        <div class="flex h-14 w-14 shrink-0 flex-col items-center justify-center border border-amber-400/20 bg-amber-500/8 text-center">
+                                            <p class="type-label text-[8px] text-amber-200/80">{{ strtoupper($event->date->format('M')) }}</p>
+                                            <p class="type-stat mt-1 text-lg leading-none text-amber-100">{{ $event->date->format('d') }}</p>
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="type-title truncate text-[13px] text-slate-100">{{ $event->title }}</p>
+                                            <p class="type-label mt-1 truncate text-[9px] text-slate-500">{{ $event->eventType->name }} - {{ $event->location ?: 'TBA' }}</p>
+                                            <div class="mt-2 flex flex-wrap gap-1.5">
+                                                <span class="type-label border border-slate-800/80 bg-slate-950/60 px-2 py-0.5 text-[8px] text-slate-400">{{ $event->usesLockedDecks() ? 'locked decks' : 'open decks' }}</span>
+                                                <span class="type-label border border-slate-800/80 bg-slate-950/60 px-2 py-0.5 text-[8px] text-slate-400">{{ $event->participants_count }} players</span>
+                                            </div>
+                                        </div>
+                                        <span class="type-label shrink-0 text-[9px] text-slate-400 transition group-hover:text-amber-200">Open</span>
                                     </a>
                                 @empty
-                                    <p class="type-body text-sm text-slate-400">No additional upcoming events.</p>
+                                    <p class="type-body text-sm text-slate-400">No additional upcoming events. Add one from the Events panel so the queue stays visible to admins.</p>
                                 @endforelse
                             </div>
                         </article>
@@ -315,99 +483,124 @@
                             <div class="pointer-events-none h-px w-full bg-gradient-to-r from-cyan-300/0 via-cyan-300/65 to-cyan-300/0"></div>
                             <div class="mt-3 flex items-start justify-between gap-3">
                                 <div>
-                                    <p class="type-kicker text-[10px] text-cyan-300/75">Season Rankings</p>
+                                    <p class="type-kicker text-[10px] text-cyan-300/75">Rankings</p>
                                     <h3 class="type-title mt-1 text-sm text-cyan-100">Top Bladers</h3>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <span class="type-label text-[8px] text-slate-500">top 10</span>
-                                    <a href="{{ route('dashboard', ['panel' => 'players']) }}" class="type-label text-[9px] text-slate-300 hover:text-cyan-200">Players</a>
-                                </div>
+                                <a href="{{ route('dashboard', ['panel' => 'players']) }}" class="type-label text-[9px] text-slate-300 hover:text-cyan-200">Players</a>
                             </div>
-                            <div class="mt-3 h-px bg-gradient-to-r from-cyan-300/0 via-cyan-300/55 to-cyan-300/0"></div>
-                            <div class="mt-3 space-y-1.5 overflow-y-auto no-scrollbar">
-                                @forelse ($leaderboard->take(10) as $row)
-                                    @php
-                                        $rank = (int) $row->rank;
-                                        $tier = match ($rank) {
-                                            1 => 'diamond',
-                                            2 => 'gold',
-                                            3 => 'silver',
-                                            4 => 'bronze',
-                                            default => 'base',
-                                        };
-
-                                        $rowClass = match ($tier) {
-                                            'diamond' => 'flex min-h-10 items-center justify-between border border-sky-200/80 bg-[linear-gradient(90deg,rgba(56,189,248,0.34),rgba(14,116,144,0.24),rgba(2,6,23,0.9))] px-2.5 py-2 text-xs shadow-[0_0_18px_rgba(56,189,248,0.26)]',
-                                            'gold' => 'flex min-h-9 items-center justify-between border border-amber-300/65 bg-[linear-gradient(90deg,rgba(251,191,36,0.2),rgba(2,6,23,0.9))] px-2 py-1.5 text-xs',
-                                            'silver' => 'flex min-h-9 items-center justify-between border border-zinc-200/55 bg-[linear-gradient(90deg,rgba(228,228,231,0.22),rgba(161,161,170,0.14),rgba(2,6,23,0.9))] px-2 py-1.5 text-xs',
-                                            'bronze' => 'flex min-h-9 items-center justify-between border border-orange-300/60 bg-[linear-gradient(90deg,rgba(251,146,60,0.16),rgba(2,6,23,0.9))] px-2 py-1.5 text-xs',
-                                            default => 'flex h-8 items-center justify-between border border-slate-800/75 bg-slate-950/72 px-2 py-1.5 text-xs',
-                                        };
-                                    @endphp
-
-                                    <div class="{{ $rowClass }}">
-                                        <p class="flex w-10 items-center gap-1 font-bold tracking-[0.03em] text-amber-300 [font-family:var(--font-display)]">
-                                            <span class="inline-flex h-3.5 w-3.5 items-center justify-center">
-                                                @if ($rank === 1)
-                                                    <svg viewBox="0 0 20 20" fill="none" class="h-3.5 w-3.5 text-amber-300" aria-hidden="true">
-                                                        <path d="M3 15.5h14l-1.1-7-3.9 3.2L10 4.5 8 11.7 4.1 8.5 3 15.5Z" fill="currentColor"/>
-                                                        <path d="M6.2 17h7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                                                    </svg>
-                                                @endif
-                                            </span>
-                                            <span class="tabular-nums">{{ $row->rank }}</span>
-                                        </p>
-                                        <p class="type-display-copy min-w-0 flex-1 truncate ml-1 pr-2 text-[13px] text-slate-100">{{ $row->nickname }}</p>
-                                        <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->points }}</p>
+                            @if ($overviewTopLeader)
+                                <div class="mt-3 border border-cyan-400/25 bg-slate-950/50 p-3">
+                                    <p class="type-label text-[8px] text-slate-500">Current #1</p>
+                                    <div class="mt-2 flex items-end justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <p class="type-title truncate text-[15px] text-cyan-100">{{ $overviewTopLeader->nickname }}</p>
+                                            <p class="type-body mt-1 text-[12px] text-slate-400">{{ $overviewTopLeader->events_played }} events - {{ $overviewTopLeader->first_places }} wins</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="type-stat text-2xl leading-none text-amber-200">{{ $overviewTopLeader->points }}</p>
+                                            <p class="type-label mt-1 text-[8px] text-slate-500">points</p>
+                                        </div>
                                     </div>
-                                @empty
-                                    <p class="type-body text-sm text-slate-400">No ranking data yet.</p>
-                                @endforelse
-                            </div>
+                                </div>
+
+                                <div class="mt-3 space-y-1.5">
+                                    @forelse ($overviewTopRows->skip(1) as $row)
+                                        <div class="flex items-center justify-between gap-3 border border-slate-800/80 bg-slate-950/65 px-3 py-2">
+                                            <div class="flex min-w-0 items-center gap-2">
+                                                <span class="type-label inline-flex h-6 w-6 items-center justify-center border border-slate-700/80 bg-slate-950/70 text-[9px] text-amber-200">{{ $row->rank }}</span>
+                                                <p class="type-display-copy truncate text-[13px] text-slate-100">{{ $row->nickname }}</p>
+                                            </div>
+                                            <p class="type-stat text-[13px] text-cyan-200">{{ $row->points }}</p>
+                                        </div>
+                                    @empty
+                                        <p class="type-body text-sm text-slate-400">No ranking data yet.</p>
+                                    @endforelse
+                                </div>
+                            @else
+                                <p class="mt-3 type-body text-sm text-slate-400">No ranking data yet. Finish an event to populate the season snapshot.</p>
+                            @endif
                         </article>
                     </div>
-                </article>
+                </div>
 
-                <div class="grid min-h-0 content-start gap-2.5">
-                    <article class="border border-fuchsia-300/35 bg-[linear-gradient(160deg,rgba(112,26,117,0.16)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
+                <div class="grid min-h-0 content-start gap-3">
+                    <article class="min-h-0 overflow-hidden border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.18)_0%,rgba(2,6,23,0.92)_100%)] p-3">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0">
+                                <p class="type-kicker text-[10px] text-cyan-300/75">Latest Event</p>
+                                <h3 class="type-title mt-1 text-sm text-cyan-100">Completed Event</h3>
+                            </div>
+                            @if ($latestEvent)
+                                <div class="flex items-center gap-2">
+                                    <a href="{{ $latestEventDashboardLink }}" class="type-label text-[9px] text-slate-300 hover:text-cyan-200">Record</a>
+                                    <a href="{{ $latestEventLiveLink }}" class="type-label text-[9px] text-slate-300 hover:text-emerald-200">Viewer</a>
+                                </div>
+                            @endif
+                        </div>
+
+                        @if ($latestEvent)
+                            <div class="mt-3 border border-cyan-400/20 bg-slate-950/55 p-3">
+                                <p class="type-title text-[15px] text-cyan-100">{{ $latestEvent->title }}</p>
+                                <p class="type-label mt-1 text-[9px] text-slate-500">{{ $latestEvent->date->format('d M Y') }} - {{ optional($latestEvent->eventType)->name ?: 'Event' }}</p>
+                            </div>
+
+                            <div class="mt-3 border border-emerald-400/20 bg-[linear-gradient(160deg,rgba(6,78,59,0.15)_0%,rgba(2,6,23,0.9)_100%)] p-3">
+                                <p class="type-kicker text-[10px] text-emerald-300/75">Champion</p>
+                                <div class="mt-2 flex items-end justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <p class="type-title truncate text-[15px] text-emerald-100">{{ $latestChampion?->player?->user?->nickname ?? 'Unknown player' }}</p>
+                                        <p class="type-body mt-1 text-[12px] text-slate-400">Latest winner on record</p>
+                                    </div>
+                                    <span class="type-label border border-emerald-400/35 bg-emerald-500/10 px-2 py-1 text-[9px] text-emerald-100">1st Place</span>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <p class="type-title text-[13px] text-slate-100">Placements</p>
+                                    <span class="type-label text-[8px] text-slate-500">top 4</span>
+                                </div>
+                                <div class="space-y-1.5">
+                                    @forelse ($latestEventPlacements as $result)
+                                        <div class="flex items-center gap-2.5 border border-slate-800/80 bg-slate-950/65 px-2.5 py-1.5">
+                                            <span class="type-stat w-6 text-[13px] text-amber-300">{{ $result->placement }}</span>
+                                            <span class="type-display-copy min-w-0 flex-1 truncate text-[13px] text-slate-100">{{ $result->player->user->nickname }}</span>
+                                        </div>
+                                    @empty
+                                        <p class="type-body text-sm text-slate-400">No placements recorded yet.</p>
+                                    @endforelse
+                                </div>
+                            </div>
+                        @else
+                            <p class="mt-3 type-body text-sm text-slate-400">Waiting for the first finished event before the result archive can populate.</p>
+                        @endif
+                    </article>
+
+                    <article class="border border-fuchsia-300/35 bg-[linear-gradient(160deg,rgba(112,26,117,0.16)_0%,rgba(2,6,23,0.92)_100%)] p-3">
                         <div class="flex items-center justify-between gap-2">
-                            <p class="type-title text-[13px] text-fuchsia-100">Award Leaders</p>
+                            <div>
+                                <p class="type-kicker text-[10px] text-fuchsia-300/75">Awards</p>
+                                <h3 class="type-title mt-1 text-sm text-fuchsia-100">Award Leaders</h3>
+                            </div>
                             <span class="type-label text-[8px] text-slate-500">top 3</span>
                         </div>
-                        <div class="mt-2 space-y-1">
+                        <div class="mt-3 grid gap-2">
                             @forelse ($awardLeaders->take(3) as $row)
-                                <div class="border border-slate-800/80 bg-slate-950/65 px-2.5 py-1">
-                                    <p class="type-label text-[8px] text-slate-500">{{ $row['award_name'] }}</p>
-                                    <div class="mt-0.5 flex items-center justify-between gap-2">
+                                <div class="border border-slate-800/80 bg-slate-950/65 p-3">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <p class="type-label text-[8px] text-slate-500">{{ $row['description'] }}</p>
+                                            <p class="type-title mt-1 text-[14px] text-fuchsia-100">{{ $row['title'] }}</p>
+                                        </div>
+                                        <span class="type-label shrink-0 border border-slate-800/80 bg-slate-950/60 px-2 py-1 text-[8px] text-slate-400">{{ $row['award_name'] }}</span>
+                                    </div>
+                                    <div class="mt-3 flex items-end justify-between gap-3">
                                         <p class="type-display-copy truncate text-[13px] text-slate-100">{{ $row['nickname'] ?: 'No data yet' }}</p>
-                                        <span class="type-label text-[8px] text-fuchsia-200">{{ $row['total'] }}</span>
+                                        <p class="type-stat text-[15px] text-amber-200">{{ $row['total'] }}</p>
                                     </div>
                                 </div>
                             @empty
                                 <p class="type-body text-sm text-slate-400">No award data yet.</p>
-                            @endforelse
-                        </div>
-                    </article>
-
-                    <article class="min-h-0 overflow-hidden border border-cyan-400/30 bg-[linear-gradient(160deg,rgba(8,47,73,0.18)_0%,rgba(2,6,23,0.92)_100%)] p-2.5">
-                        <div class="flex items-start justify-between gap-2">
-                            <div class="min-w-0">
-                                <p class="type-kicker text-[10px] text-cyan-300/75">Latest Event</p>
-                                <p class="type-title mt-1 truncate text-[13px] text-cyan-100">{{ $latestEvent?->title ?: 'No finished event yet' }}</p>
-                                @if ($latestEvent)
-                                    <p class="type-label mt-1 text-[8px] text-slate-500">{{ $latestEvent->date->format('d M Y') }} - {{ $latestEvent->eventType->name }}</p>
-                                @endif
-                            </div>
-                            <span class="type-label text-[8px] text-slate-500">top 4</span>
-                        </div>
-                        <div class="mt-2 space-y-1 overflow-y-auto no-scrollbar">
-                            @forelse ($latestEventPlacements as $result)
-                                <div class="flex items-center gap-2.5 border border-slate-800/80 bg-slate-950/65 px-2.5 py-1">
-                                    <span class="type-stat w-5 text-[13px] text-amber-300">{{ $result->placement }}</span>
-                                    <span class="type-display-copy min-w-0 flex-1 truncate text-[13px] text-slate-100">{{ $result->player->user->nickname }}</span>
-                                </div>
-                            @empty
-                                <p class="type-body text-sm text-slate-400">No placements recorded yet.</p>
                             @endforelse
                         </div>
                     </article>
@@ -478,10 +671,16 @@
                         <div class="border border-slate-800/80 bg-slate-950/55 px-3 py-2.5">
                             <p class="type-label text-[10px] text-slate-500">Form State</p>
                             @if ($selectedEvent)
-                                <p class="mt-1 text-sm text-slate-100">{{ $selectedEventStarted ? 'Locked: '.$selectedEvent->title : 'Editing: '.$selectedEvent->title }}</p>
+                                <p class="mt-1 text-sm text-slate-100">
+                                    {{ $selectedEventStarted
+                                        ? ($selectedEventCanEditSwissSettings ? 'Swiss Config Open: '.$selectedEvent->title : 'Locked: '.$selectedEvent->title)
+                                        : 'Editing: '.$selectedEvent->title }}
+                                </p>
                                 <p class="mt-1 text-xs text-slate-400">
                                     {{ $selectedEventStarted
-                                        ? 'Bracket play has started. Event details can no longer be changed.'
+                                        ? ($selectedEventCanEditSwissSettings
+                                            ? 'Bracket play has started. Only Swiss rounds and top cut size can still be adjusted before top cut is generated.'
+                                            : 'Bracket play has started. Event details can no longer be changed.')
                                         : 'Use Create New Event to clear the form and start a fresh entry.' }}
                                 </p>
                             @else
@@ -513,12 +712,12 @@
                         <div class="grid gap-3 sm:grid-cols-2">
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Swiss Rounds</span>
-                                <input type="number" min="1" max="12" name="swiss_rounds" value="{{ old('swiss_rounds', $selectedEvent?->swiss_rounds ?: 5) }}" @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
+                                <input type="number" min="1" max="12" name="swiss_rounds" value="{{ old('swiss_rounds', $selectedEvent?->swiss_rounds ?: 5) }}" @disabled($selectedEventStarted && ! $selectedEventCanEditSwissSettings) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                             </label>
 
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Top Cut Size</span>
-                                <select name="top_cut_size" @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
+                                <select name="top_cut_size" @disabled($selectedEventStarted && ! $selectedEventCanEditSwissSettings) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                                     @foreach ([2, 4, 8, 16, 32, 64] as $size)
                                         <option value="{{ $size }}" @selected((string) old('top_cut_size', $selectedEvent?->top_cut_size ?: 8) === (string) $size)>Top {{ $size }}</option>
                                     @endforeach
@@ -526,7 +725,11 @@
                             </label>
                         </div>
 
-                        <p class="text-xs text-slate-500">Swiss settings are only used when the event runs Swiss into a top cut.</p>
+                        <p class="text-xs text-slate-500">
+                            {{ $selectedEventCanEditSwissSettings
+                                ? 'Swiss settings stay editable until the first top cut round is generated.'
+                                : 'Swiss settings are only used when the event runs Swiss into a top cut.' }}
+                        </p>
 
                         <label class="grid gap-2 border border-slate-800/80 bg-slate-950/55 px-3 py-3">
                             <span class="flex items-start gap-3">
@@ -577,13 +780,13 @@
                         </div>
 
                         <label class="grid gap-1">
-                            <span class="text-sm text-slate-300">Created By (nickname)</span>
-                            <input name="created_by_nickname" value="{{ old('created_by_nickname', $selectedEvent?->creator?->nickname ?? auth()->user()->nickname) }}" required @disabled($selectedEventStarted) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
+                            <span class="text-sm text-slate-300">Created By</span>
+                            <input value="{{ $selectedEvent?->creator?->nickname ?? auth()->user()->nickname }}" readonly class="rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-slate-400 focus:outline-none">
                         </label>
 
                         <div class="flex flex-wrap gap-2 pt-1">
-                            <button @disabled($selectedEventStarted) class="type-label border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-[10px] text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
-                                {{ $selectedEvent ? 'Update Event' : 'Create Event' }}
+                            <button @disabled($selectedEventStarted && ! $selectedEventCanEditSwissSettings) class="type-label border border-amber-500/70 bg-amber-500/10 px-4 py-2 text-[10px] text-amber-100 transition hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
+                                {{ $selectedEventCanEditSwissSettings ? 'Update Swiss Settings' : ($selectedEvent ? 'Update Event' : 'Create Event') }}
                             </button>
                         </div>
                     </form>

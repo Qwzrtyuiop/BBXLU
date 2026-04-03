@@ -200,6 +200,28 @@ class Event extends Model
         return $this->rounds()->exists();
     }
 
+    public function hasGeneratedTopCut(): bool
+    {
+        if (! $this->usesSwissBracket()) {
+            return false;
+        }
+
+        if ($this->relationLoaded('rounds')) {
+            return $this->rounds->contains(fn (EventRound $round) => $round->stage === 'single_elim');
+        }
+
+        return $this->rounds()
+            ->where('stage', 'single_elim')
+            ->exists();
+    }
+
+    public function canEditSwissSettingsAfterStart(): bool
+    {
+        return $this->hasStarted()
+            && $this->usesSwissBracket()
+            && ! $this->hasGeneratedTopCut();
+    }
+
     public function storedChallongeLink(): ?string
     {
         $link = $this->challonge_link ?: $this->challonge_url;

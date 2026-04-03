@@ -241,6 +241,11 @@
             blade-face-impact 180ms steps(1, end) 1480ms 1 forwards;
     }
 
+    .clash-finished .clash-blade {
+        opacity: 0;
+        visibility: hidden;
+    }
+
     @media (min-width: 640px) {
         .edge-fade-x {
             --edge-fade-size: 30px;
