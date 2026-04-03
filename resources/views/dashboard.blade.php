@@ -182,6 +182,26 @@
                 </div>
 
                 <div class="grid gap-1.5 sm:grid-cols-2 xl:flex xl:flex-wrap xl:items-start xl:justify-end xl:justify-self-end 2xl:flex-nowrap">
+                    <div class="flex items-center justify-between gap-3 border border-slate-700 bg-slate-950/55 px-2.5 py-1.5 sm:col-span-2 xl:min-w-[12rem]">
+                        <div>
+                            <p class="type-label text-[9px] text-cyan-100">Auto-Update</p>
+                            <p data-dashboard-auto-update-help class="mt-1 text-[9px] text-slate-500">Off by default</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span data-dashboard-auto-update-state class="type-label text-[9px] text-slate-400">Off</span>
+                            <button
+                                type="button"
+                                data-dashboard-auto-update-toggle
+                                aria-pressed="false"
+                                class="relative inline-flex h-6 w-11 items-center rounded-full border border-slate-700 bg-slate-950/80 px-0.5 transition"
+                            >
+                                <span
+                                    data-dashboard-auto-update-knob
+                                    class="h-4 w-4 translate-x-0 rounded-full bg-slate-400 transition-transform duration-200"
+                                ></span>
+                            </button>
+                        </div>
+                    </div>
                     <a href="{{ route('dashboard', ['panel' => 'events']) }}" class="type-label inline-flex items-center justify-center border border-amber-400/70 bg-amber-400/12 px-2.5 py-1.5 text-[9px] text-amber-100 transition hover:bg-amber-400/20">Create Or Edit Event</a>
                     @if ($currentFocus)
                         <a href="{{ $currentFocusLink }}" class="type-label inline-flex items-center justify-center border border-slate-700 bg-slate-950/55 px-2.5 py-1.5 text-[9px] text-slate-100 transition hover:border-cyan-400 hover:text-cyan-200">Open Current Workspace</a>
@@ -717,11 +737,7 @@
 
                             <label class="grid gap-1">
                                 <span class="text-sm text-slate-300">Top Cut Size</span>
-                                <select name="top_cut_size" @disabled($selectedEventStarted && ! $selectedEventCanEditSwissSettings) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
-                                    @foreach ([2, 4, 8, 16, 32, 64] as $size)
-                                        <option value="{{ $size }}" @selected((string) old('top_cut_size', $selectedEvent?->top_cut_size ?: 8) === (string) $size)>Top {{ $size }}</option>
-                                    @endforeach
-                                    </select>
+                                <input type="number" min="2" max="64" name="top_cut_size" value="{{ old('top_cut_size', $selectedEvent?->top_cut_size ?: 8) }}" @disabled($selectedEventStarted && ! $selectedEventCanEditSwissSettings) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                             </label>
                         </div>
 
@@ -730,6 +746,7 @@
                                 ? 'Swiss settings stay editable until the first top cut round is generated.'
                                 : 'Swiss settings are only used when the event runs Swiss into a top cut.' }}
                         </p>
+                        <p class="text-xs text-slate-500">Top cut accepts any value from 2 to 64. The bracket will pad to the next elimination size with byes when needed.</p>
 
                         <label class="grid gap-2 border border-slate-800/80 bg-slate-950/55 px-3 py-3">
                             <span class="flex items-start gap-3">

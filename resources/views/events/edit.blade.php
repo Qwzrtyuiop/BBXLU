@@ -44,13 +44,11 @@
                 </label>
                 <label class="grid gap-1">
                     <span class="text-sm text-slate-300">Top Cut Size</span>
-                    <select name="top_cut_size" @disabled($eventStarted && ! $canEditSwissSettings) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
-                        @foreach ([2, 4, 8, 16, 32, 64] as $size)
-                            <option value="{{ $size }}" @selected((string) old('top_cut_size', $event->top_cut_size ?: 8) === (string) $size)>Top {{ $size }}</option>
-                        @endforeach
-                    </select>
+                    <input type="number" min="2" max="64" name="top_cut_size" value="{{ old('top_cut_size', $event->top_cut_size ?: 8) }}" @disabled($eventStarted && ! $canEditSwissSettings) class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-slate-100 focus:border-amber-500 focus:outline-none disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500">
                 </label>
             </div>
+
+            <p class="text-sm text-slate-500">Top cut accepts any value from 2 to 64. The bracket will pad to the next elimination size with byes when needed.</p>
 
             <div class="grid gap-4 sm:grid-cols-2">
                 <label class="grid gap-1">

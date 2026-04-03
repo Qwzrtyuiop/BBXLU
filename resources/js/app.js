@@ -1059,12 +1059,89 @@ function setupDashboardSoftNavigation() {
         requestInFlight: false,
         refreshTimer: null,
         retryRequest: null,
+        autoUpdateEnabled: false,
     };
 
     const getDashboardShell = () => document.querySelector('[data-dashboard-shell]');
     const getDashboardMain = () => document.querySelector('[data-dashboard-main]');
     const getDashboardRoute = () => getDashboardShell()?.dataset.dashboardRoute || '';
     const isDashboardActive = () => Boolean(getDashboardShell());
+    const autoUpdateStorageKey = 'bbxlu_dashboard_beta_auto_update';
+
+    const readAutoUpdatePreference = () => {
+        try {
+            return window.localStorage.getItem(autoUpdateStorageKey) === 'true';
+        } catch {
+            return false;
+        }
+    };
+
+    const writeAutoUpdatePreference = (enabled) => {
+        state.autoUpdateEnabled = enabled;
+
+        try {
+            window.localStorage.setItem(autoUpdateStorageKey, enabled ? 'true' : 'false');
+        } catch {
+            // Ignore storage errors and keep the in-memory preference.
+        }
+    };
+
+    const syncAutoUpdateToggleUi = () => {
+        const shell = getDashboardShell();
+        const toggle = document.querySelector('[data-dashboard-auto-update-toggle]');
+        const stateLabel = document.querySelector('[data-dashboard-auto-update-state]');
+        const helpLabel = document.querySelector('[data-dashboard-auto-update-help]');
+        const knob = document.querySelector('[data-dashboard-auto-update-knob]');
+        const enabled = Boolean(state.autoUpdateEnabled);
+
+        if (shell) {
+            shell.dataset.dashboardAutoUpdate = enabled ? 'true' : 'false';
+        }
+
+        if (!toggle) {
+            return;
+        }
+
+        toggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        toggle.classList.toggle('border-emerald-400/70', enabled);
+        toggle.classList.toggle('bg-emerald-500/18', enabled);
+        toggle.classList.toggle('border-slate-700', !enabled);
+        toggle.classList.toggle('bg-slate-950/80', !enabled);
+
+        if (knob) {
+            knob.classList.toggle('translate-x-5', enabled);
+            knob.classList.toggle('translate-x-0', !enabled);
+            knob.classList.toggle('bg-emerald-200', enabled);
+            knob.classList.toggle('bg-slate-400', !enabled);
+        }
+
+        if (stateLabel) {
+            stateLabel.textContent = enabled ? 'On' : 'Off';
+            stateLabel.classList.toggle('text-emerald-200', enabled);
+            stateLabel.classList.toggle('text-slate-400', !enabled);
+        }
+
+        if (helpLabel) {
+            helpLabel.textContent = enabled
+                ? 'Syncing...'
+                : 'Off by default';
+        }
+    };
+
+    const setAutoUpdateEnabled = (enabled) => {
+        writeAutoUpdatePreference(enabled);
+        syncAutoUpdateToggleUi();
+
+        if (enabled && !shouldSkipAutoRefresh()) {
+            requestDashboardDocument(window.location.href, {
+                historyMode: 'replace',
+                preserveScroll: true,
+                quiet: true,
+            });
+        }
+    };
+
+    state.autoUpdateEnabled = readAutoUpdatePreference();
 
     const isDashboardUrl = (candidate) => {
         const dashboardRoute = getDashboardRoute();
@@ -1079,27 +1156,106 @@ function setupDashboardSoftNavigation() {
             && targetUrl.pathname === dashboardUrl.pathname;
     };
 
-    const captureDashboardScroll = () => ({
-        shellTop: getDashboardShell()?.scrollTop ?? 0,
-        mainTop: getDashboardMain()?.scrollTop ?? 0,
-    });
+    const buildDashboardElementPath = (root, element) => {
+        const path = [];
+        let current = element;
+
+        while (current && current !== root) {
+            const parent = current.parentElement;
+            if (!parent) {
+                return null;
+            }
+
+            path.unshift(Array.from(parent.children).indexOf(current));
+            current = parent;
+        }
+
+        return current === root ? path : null;
+    };
+
+    const resolveDashboardElementPath = (root, path) => {
+        let current = root;
+
+        for (const index of path) {
+            current = current?.children?.[index] ?? null;
+            if (!current) {
+                return null;
+            }
+        }
+
+        return current;
+    };
+
+    const captureDashboardScroll = () => {
+        const shell = getDashboardShell();
+        if (!shell) {
+            return [];
+        }
+
+        const scrollState = [];
+        const candidates = [shell, ...shell.querySelectorAll('*')];
+
+        candidates.forEach((element) => {
+            if (!(element instanceof HTMLElement)) {
+                return;
+            }
+
+            const canScrollY = element.scrollHeight > element.clientHeight + 1;
+            const canScrollX = element.scrollWidth > element.clientWidth + 1;
+            if (!canScrollY && !canScrollX) {
+                return;
+            }
+
+            const top = element.scrollTop;
+            const left = element.scrollLeft;
+            if (top <= 0 && left <= 0) {
+                return;
+            }
+
+            const path = element === shell ? [] : buildDashboardElementPath(shell, element);
+            if (!path) {
+                return;
+            }
+
+            scrollState.push({ path, top, left });
+        });
+
+        return scrollState;
+    };
 
     const restoreDashboardScroll = (positions) => {
-        if (!positions) {
+        if (!positions || positions.length === 0) {
             return;
         }
 
-        window.requestAnimationFrame(() => {
+        const applyRestore = () => {
             const shell = getDashboardShell();
-            const main = getDashboardMain();
-
-            if (shell) {
-                shell.scrollTop = positions.shellTop ?? 0;
+            if (!shell) {
+                return;
             }
 
-            if (main) {
-                main.scrollTop = positions.mainTop ?? 0;
-            }
+            positions.forEach(({ path, top, left }) => {
+                const target = path.length === 0
+                    ? shell
+                    : resolveDashboardElementPath(shell, path);
+
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+
+                if (typeof top === 'number') {
+                    target.scrollTop = top;
+                }
+
+                if (typeof left === 'number') {
+                    target.scrollLeft = left;
+                }
+            });
+        };
+
+        window.requestAnimationFrame(() => {
+            applyRestore();
+            window.setTimeout(applyRestore, 90);
         });
     };
 
@@ -1177,6 +1333,7 @@ function setupDashboardSoftNavigation() {
 
         updateHistoryForDashboard(finalUrl, options.historyMode ?? 'replace');
         bindDashboardBodyInteractions();
+        syncAutoUpdateToggleUi();
         if (options.quiet) {
             hideDashboardLoader();
         } else {
@@ -1313,6 +1470,10 @@ function setupDashboardSoftNavigation() {
             return true;
         }
 
+        if (!state.autoUpdateEnabled) {
+            return true;
+        }
+
         if (isDashboardWarningVisible()) {
             return true;
         }
@@ -1341,6 +1502,13 @@ function setupDashboardSoftNavigation() {
     };
 
     document.addEventListener('click', (event) => {
+        const autoUpdateToggle = event.target.closest('[data-dashboard-auto-update-toggle]');
+        if (autoUpdateToggle && isDashboardActive()) {
+            event.preventDefault();
+            setAutoUpdateEnabled(!state.autoUpdateEnabled);
+            return;
+        }
+
         if (event.defaultPrevented || !isDashboardActive()) {
             return;
         }
@@ -1516,6 +1684,8 @@ function setupDashboardSoftNavigation() {
             quiet: true,
         });
     }, 8000);
+
+    syncAutoUpdateToggleUi();
 }
 
 function bindDashboardBodyInteractions() {

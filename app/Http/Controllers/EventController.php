@@ -648,7 +648,7 @@ class EventController extends Controller
             'event_type_id' => ['required', 'exists:event_types,id'],
             'bracket_type' => ['required', 'in:single_elim,swiss_single_elim'],
             'swiss_rounds' => [Rule::requiredIf(fn () => ($data['bracket_type'] ?? null) === 'swiss_single_elim'), 'nullable', 'integer', 'min:1', 'max:12'],
-            'top_cut_size' => [Rule::requiredIf(fn () => ($data['bracket_type'] ?? null) === 'swiss_single_elim'), 'nullable', 'integer', 'in:2,4,8,16,32,64'],
+            'top_cut_size' => [Rule::requiredIf(fn () => ($data['bracket_type'] ?? null) === 'swiss_single_elim'), 'nullable', 'integer', 'min:2', 'max:64'],
             'is_lock_deck' => ['nullable', 'boolean'],
             'date' => ['required', 'date'],
             'location' => ['nullable', 'string', 'max:255'],
