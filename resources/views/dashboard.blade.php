@@ -502,11 +502,14 @@
                         <article class="min-h-0 overflow-hidden border border-cyan-400/35 bg-[linear-gradient(165deg,rgba(8,47,73,0.28)_0%,rgba(2,6,23,0.93)_42%,rgba(2,6,23,0.99)_100%)] p-3 shadow-[0_16px_34px_rgba(2,6,23,0.36)]">
                             <div class="pointer-events-none h-px w-full bg-gradient-to-r from-cyan-300/0 via-cyan-300/65 to-cyan-300/0"></div>
                             <div class="mt-3 flex items-start justify-between gap-3">
-                                <div>
-                                    <p class="type-kicker text-[10px] text-cyan-300/75">Rankings</p>
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <p class="type-kicker text-[10px] text-cyan-300/75">Rankings</p>
+                                        <span title="{{ $leaderboardScoreTooltip }}" class="type-label inline-flex cursor-help items-center border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[8px] text-cyan-100">Score</span>
+                                    </div>
                                     <h3 class="type-title mt-1 text-sm text-cyan-100">Top Bladers</h3>
                                 </div>
-                                <a href="{{ route('dashboard', ['panel' => 'players']) }}" class="type-label text-[9px] text-slate-300 hover:text-cyan-200">Players</a>
+                                <a href="{{ route('dashboard', ['panel' => 'players']) }}" class="type-label shrink-0 text-[9px] text-slate-300 hover:text-cyan-200">Players</a>
                             </div>
                             @if ($overviewTopLeader)
                                 <div class="mt-3 border border-cyan-400/25 bg-slate-950/50 p-3">
@@ -517,8 +520,8 @@
                                             <p class="type-body mt-1 text-[12px] text-slate-400">{{ $overviewTopLeader->events_played }} events - {{ $overviewTopLeader->first_places }} wins</p>
                                         </div>
                                         <div class="text-right">
-                                            <p class="type-stat text-2xl leading-none text-amber-200">{{ $overviewTopLeader->points }}</p>
-                                            <p class="type-label mt-1 text-[8px] text-slate-500">points</p>
+                                            <p class="type-stat text-2xl leading-none text-amber-200">{{ $overviewTopLeader->score_display ?? $overviewTopLeader->points }}</p>
+                                            <p class="type-label mt-1 cursor-help text-[8px] text-slate-500" title="{{ $leaderboardScoreTooltip }}">score</p>
                                         </div>
                                     </div>
                                 </div>
@@ -530,7 +533,7 @@
                                                 <span class="type-label inline-flex h-6 w-6 items-center justify-center border border-slate-700/80 bg-slate-950/70 text-[9px] text-amber-200">{{ $row->rank }}</span>
                                                 <p class="type-display-copy truncate text-[13px] text-slate-100">{{ $row->nickname }}</p>
                                             </div>
-                                            <p class="type-stat text-[13px] text-cyan-200">{{ $row->points }}</p>
+                                            <p class="type-stat text-[13px] text-cyan-200">{{ $row->score_display ?? $row->points }}</p>
                                         </div>
                                     @empty
                                         <p class="type-body text-sm text-slate-400">No ranking data yet.</p>
@@ -1097,7 +1100,9 @@
                                 <tr class="border-b border-slate-800 text-slate-400">
                                     <th class="px-3 py-2">Rank</th>
                                     <th class="px-3 py-2">Nickname</th>
-                                    <th class="px-3 py-2">Points</th>
+                                    <th class="px-3 py-2">
+                                        <span title="{{ $leaderboardScoreTooltip }}" class="cursor-help border-b border-dotted border-slate-500/60">Score</span>
+                                    </th>
                                     <th class="px-3 py-2">Events</th>
                                     <th class="px-3 py-2">Firsts</th>
                                 </tr>
@@ -1143,7 +1148,7 @@
                                                 </div>
                                             @endif
                                         </td>
-                                        <td class="px-3 py-2 font-semibold text-amber-100">{{ $row->points }}</td>
+                                        <td class="px-3 py-2 font-semibold text-amber-100">{{ $row->score_display ?? $row->points }}</td>
                                         <td class="px-3 py-2 text-slate-300">{{ $row->events_played }}</td>
                                         <td class="px-3 py-2 text-slate-300">{{ $row->first_places }}</td>
                                     </tr>

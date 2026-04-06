@@ -5,7 +5,7 @@
                 <div>
                     <p class="type-kicker text-[10px] text-cyan-300/75">Public Directory</p>
                     <h1 class="type-headline mt-1 text-2xl text-cyan-100 sm:text-3xl">Players</h1>
-                    <p class="mt-2 max-w-2xl text-sm text-slate-300">Season leaderboard and full player list. Click a name to open a quick profile preview.</p>
+                    <p class="mt-2 max-w-2xl text-sm text-slate-300">Bayesian-adjusted season leaderboard and full player list. Click a name to open a quick profile preview.</p>
                 </div>
 
                 <div class="grid min-w-[14rem] gap-2 sm:grid-cols-2">
@@ -36,7 +36,9 @@
                         <tr class="border-b border-slate-800 text-slate-400">
                             <th class="px-3 py-2">Rank</th>
                             <th class="px-3 py-2">Nickname</th>
-                            <th class="px-3 py-2">Points</th>
+                            <th class="px-3 py-2">
+                                <span title="{{ $leaderboardScoreTooltip }}" class="cursor-help border-b border-dotted border-slate-500/60">Score</span>
+                            </th>
                             <th class="px-3 py-2">Events</th>
                             <th class="px-3 py-2">Firsts</th>
                         </tr>
@@ -82,7 +84,7 @@
                                         </div>
                                     @endif
                                 </td>
-                                <td class="px-3 py-2 font-semibold text-amber-100">{{ $row->points }}</td>
+                                <td class="px-3 py-2 font-semibold text-amber-100">{{ $row->score_display ?? $row->points }}</td>
                                 <td class="px-3 py-2 text-slate-300">{{ $row->events_played }}</td>
                                 <td class="px-3 py-2 text-slate-300">{{ $row->first_places }}</td>
                             </tr>

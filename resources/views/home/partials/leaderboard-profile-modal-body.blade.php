@@ -26,7 +26,9 @@
 
     <div class="grid gap-2 sm:grid-cols-2">
         @foreach ([
-            ['label' => 'Points', 'value' => $preview['points'] ?? 0, 'tone' => 'text-cyan-100'],
+            ['label' => 'Score', 'value' => $preview['score_display'] ?? '0', 'tone' => 'text-cyan-100', 'title' => $leaderboardScoreTooltip ?? null],
+            ['label' => 'Raw Points', 'value' => $preview['raw_points_display'] ?? '0', 'tone' => 'text-amber-100'],
+            ['label' => 'Weighted Games', 'value' => $preview['weighted_matches_display'] ?? '0', 'tone' => 'text-emerald-100'],
             ['label' => 'Events', 'value' => $preview['events_played'] ?? 0, 'tone' => 'text-amber-100'],
             ['label' => 'Titles', 'value' => $preview['first_places'] ?? 0, 'tone' => 'text-emerald-100'],
             ['label' => 'Podiums', 'value' => $preview['podiums'] ?? 0, 'tone' => 'text-fuchsia-100'],
@@ -36,7 +38,7 @@
             ['label' => 'Avg Score', 'value' => isset($preview['avg_score']) ? number_format((float) $preview['avg_score'], 1) : '-', 'tone' => 'text-slate-100'],
         ] as $stat)
             <article class="border border-slate-800/80 bg-slate-950/70 px-3 py-2.5">
-                <p class="type-label text-[10px] text-slate-500">{{ $stat['label'] }}</p>
+                <p class="type-label text-[10px] text-slate-500" @if (! empty($stat['title'])) title="{{ $stat['title'] }}" @endif>{{ $stat['label'] }}</p>
                 <p class="mt-1 text-lg font-bold {{ $stat['tone'] }}">{{ $stat['value'] }}</p>
             </article>
         @endforeach

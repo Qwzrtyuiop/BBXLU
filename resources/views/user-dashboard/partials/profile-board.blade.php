@@ -67,7 +67,7 @@
     ];
     $statGroups = [
         [
-            'eyebrow' => 'Competitive Snapshot',
+            'eyebrow' => 'Ranked Statistics',
             'title' => 'Event Performance',
             'accent' => 'cyan',
             'cards' => [
@@ -93,8 +93,8 @@
             ],
         ],
         [
-            'eyebrow' => 'Finish Profile',
-            'title' => 'Bey And Finish Trends',
+            'eyebrow' => 'Battle Profile',
+            'title' => 'Beys and Wins',
             'accent' => 'fuchsia',
             'cards' => [
                 ['label' => 'Most Used Bey', 'value' => $profileStats['most_used_bey'] ?: '-', 'tone' => 'text-fuchsia-100', 'meta' => $profileStats['most_used_bey_count'] > 0 ? $profileStats['most_used_bey_count'].' uses' : null],

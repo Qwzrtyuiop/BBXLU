@@ -14,6 +14,7 @@ class PlayerController extends Controller
         return view('players.index', [
             'leaderboard' => $leaderboard,
             'leaderboardProfiles' => $rankingService->leaderboardProfilePreviews($leaderboard),
+            'leaderboardScoreTooltip' => $rankingService->leaderboardScoreTooltip(),
         ]);
     }
 }

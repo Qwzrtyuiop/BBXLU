@@ -29,6 +29,7 @@ class HomeController extends Controller
             [
                 'leaderboard' => $leaderboard,
                 'leaderboardProfiles' => $rankingService->leaderboardProfilePreviews($leaderboardProfiles),
+                'leaderboardScoreTooltip' => $rankingService->leaderboardScoreTooltip(),
             ]
         ));
     }

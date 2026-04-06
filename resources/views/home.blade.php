@@ -309,11 +309,16 @@
 
                 <aside class="order-3 self-start xl:order-3 xl:self-stretch">
                     <div class="flex flex-col gap-4 xl:h-full">
-                        <div class="overflow-hidden border border-cyan-400/35 bg-[linear-gradient(165deg,rgba(8,47,73,0.34)_0%,rgba(2,6,23,0.93)_42%,rgba(2,6,23,0.99)_100%)] p-3 shadow-[0_18px_40px_rgba(2,6,23,0.5)] sm:p-4">
-                            <div class="pointer-events-none h-1 w-full bg-gradient-to-r from-cyan-300/0 via-cyan-300/75 to-cyan-300/0"></div>
+                        <div class="relative overflow-hidden border border-cyan-400/35 bg-[linear-gradient(165deg,rgba(8,47,73,0.34)_0%,rgba(2,6,23,0.93)_42%,rgba(2,6,23,0.99)_100%)] p-3 shadow-[0_18px_40px_rgba(2,6,23,0.5)] sm:p-4">
+                            <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-300/0 via-cyan-300/75 to-cyan-300/0"></div>
                             <div class="mb-4 border-b border-cyan-400/20 pb-3">
-                                <p class="type-kicker text-[10px] text-cyan-300/80">Player Rankings</p>
-                                <h2 class="type-title mt-1 text-base text-cyan-100">Top Bladers</h2>
+                                <div class="min-w-0">
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        <p class="type-kicker text-[10px] text-cyan-300/80">Player Rankings</p>
+                                        <span title="{{ $leaderboardScoreTooltip }}" class="type-label inline-flex cursor-help items-center border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[9px] text-cyan-100">Score</span>
+                                    </div>
+                                    <h2 class="type-title mt-1 text-base text-cyan-100">Top Bladers</h2>
+                                </div>
                             </div>
 
                             <div class="space-y-1.5">
@@ -360,7 +365,7 @@
                                 <span class="tabular-nums">{{ $row->rank }}</span>
                             </p>
                             <p class="type-display-copy min-w-0 flex-1 truncate ml-1 pr-2 text-[13px] text-slate-100 transition group-hover:text-cyan-50">{{ $row->nickname }}</p>
-                            <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->points }}</p>
+                            <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->score_display ?? $row->points }}</p>
                         </button>
                     @else
                         <div class="{{ $rowClass }}">
@@ -376,7 +381,7 @@
                                 <span class="tabular-nums">{{ $row->rank }}</span>
                             </p>
                             <p class="type-display-copy min-w-0 flex-1 truncate ml-1 pr-2 text-[13px] text-slate-100">{{ $row->nickname }}</p>
-                            <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->points }}</p>
+                            <p class="font-bold tabular-nums tracking-[0.03em] text-cyan-200 [font-family:var(--font-display)]">{{ $row->score_display ?? $row->points }}</p>
                         </div>
                     @endif
                 @empty
@@ -436,12 +441,28 @@
                 <p class="type-kicker text-xs text-slate-500">Newest Finished</p>
             </div>
             @if ($latestEvent)
+                @php
+                    $latestChampion = $latestEventPlacements->firstWhere('placement', 1);
+                @endphp
                 <article class="relative flex h-full flex-col overflow-hidden bg-[linear-gradient(160deg,rgba(8,47,73,0.28)_0%,rgba(2,6,23,0.94)_40%,rgba(2,6,23,0.99)_100%)] p-5 ring-1 ring-cyan-400/45 shadow-[0_18px_44px_rgba(2,6,23,0.56)]">
                     <div class="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-300/0 via-cyan-300/80 to-cyan-300/0"></div>
                     <div class="pointer-events-none absolute -right-10 top-8 h-28 w-28 rounded-full bg-cyan-400/10 blur-2xl"></div>
                     <div class="relative z-10 flex h-full flex-col">
-                        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-                            <span class="type-kicker inline-flex h-6 items-center border border-cyan-300/40 bg-cyan-400/10 px-2 text-[10px] text-cyan-200">{{ $latestEvent->eventType->name }}</span>
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="type-kicker inline-flex h-6 items-center border border-cyan-300/40 bg-cyan-400/10 px-2 text-[10px] text-cyan-200">{{ optional($latestEvent->eventType)->name ?: 'Event' }}</span>
+                                    <span class="type-label inline-flex h-6 items-center border border-slate-700/80 bg-slate-950/55 px-2 text-[10px] text-slate-300">{{ $latestEvent->date->format('d M Y') }}</span>
+                                </div>
+                                <p class="type-headline mt-3 max-w-4xl text-2xl leading-tight text-white">{{ $latestEvent->title }}</p>
+                                <p class="type-body mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-400">
+                                    <span>{{ $latestEvent->location ?: 'Venue TBD' }}</span>
+                                    <span class="text-slate-600">/</span>
+                                    <span>{{ number_format((int) $latestEvent->participants_count) }} players</span>
+                                    <span class="text-slate-600">/</span>
+                                    <span>Recorded by {{ optional($latestEvent->creator)->nickname ?: 'System' }}</span>
+                                </p>
+                            </div>
                             <a
                                 href="{{ route('live.viewer.event', $latestEvent) }}"
                                 class="type-label inline-flex items-center justify-center border border-emerald-400/55 bg-emerald-400/10 px-3 py-2 text-[10px] text-emerald-100 transition hover:bg-emerald-400/18"
@@ -450,73 +471,76 @@
                             </a>
                         </div>
 
-                        <p class="type-headline max-w-4xl text-2xl leading-tight text-white">{{ $latestEvent->title }}</p>
+                        <div class="mt-5 grid flex-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_14rem]">
+                            <div class="flex min-h-0 flex-col gap-3">
+                                <div class="border border-cyan-400/25 bg-[linear-gradient(150deg,rgba(8,47,73,0.3)_0%,rgba(2,6,23,0.94)_100%)] p-4">
+                                    <div class="flex items-start justify-between gap-3">
+                                        <div class="min-w-0">
+                                            <p class="type-kicker text-[10px] text-cyan-300/75">Champion</p>
+                                            <p class="type-display-copy mt-2 truncate text-2xl text-cyan-50">
+                                                {{ $latestChampion?->player?->user?->nickname ?? 'No winner recorded yet' }}
+                                            </p>
+                                            <p class="mt-1 text-[11px] uppercase tracking-[0.16em] text-slate-500">
+                                                {{ optional($latestEvent->eventType)->name ?: 'Event' }} / {{ $latestEvent->date->format('l') }}
+                                            </p>
+                                        </div>
+                                        <span class="type-label inline-flex h-8 items-center border border-amber-300/45 bg-amber-400/10 px-3 text-[10px] text-amber-100">#1</span>
+                                    </div>
+                                </div>
 
-                        <div class="mt-4 grid gap-2 lg:grid-cols-2">
-                            <div class="border border-slate-700/80 bg-slate-950/65 px-3 py-2">
-                                <p class="type-label text-[10px] text-slate-500">Date</p>
-                                <p class="type-body-strong mt-1 text-xs text-slate-100">{{ $latestEvent->date->format('l, d M Y') }}</p>
-                            </div>
-                            <div class="border border-slate-700/80 bg-slate-950/65 px-3 py-2">
-                                <p class="type-label text-[10px] text-slate-500">By</p>
-                                <p class="type-body-strong mt-1 truncate text-xs text-slate-100">{{ optional($latestEvent->creator)->nickname ?: 'System' }}</p>
-                            </div>
-                            <div class="border border-slate-700/80 bg-slate-950/65 px-3 py-2">
-                                <p class="type-label text-[10px] text-slate-500">Players</p>
-                                <p class="type-stat mt-1 text-xs text-amber-200">{{ $latestEvent->participants_count }}</p>
-                            </div>
-                            <div class="border border-slate-700/80 bg-slate-950/65 px-3 py-2">
-                                <p class="type-label text-[10px] text-slate-500">Venue</p>
-                                <p class="type-body-strong mt-1 text-xs text-slate-100 break-words">{{ $latestEvent->location ?: 'TBD Venue' }}</p>
-                            </div>
-                        </div>
+                                <div class="grid gap-2 sm:grid-cols-3">
+                                    <div class="border border-slate-700/80 bg-slate-950/65 px-3 py-2.5">
+                                        <p class="type-label text-[10px] text-slate-500">Date</p>
+                                        <p class="type-body-strong mt-1 text-xs text-slate-100">{{ $latestEvent->date->format('l, d M Y') }}</p>
+                                    </div>
+                                    <div class="border border-slate-700/80 bg-slate-950/65 px-3 py-2.5">
+                                        <p class="type-label text-[10px] text-slate-500">Players</p>
+                                        <p class="type-stat mt-1 text-sm text-amber-200">{{ $latestEvent->participants_count }}</p>
+                                    </div>
+                                    <div class="border border-slate-700/80 bg-slate-950/65 px-3 py-2.5">
+                                        <p class="type-label text-[10px] text-slate-500">Venue</p>
+                                        <p class="type-body-strong mt-1 break-words text-xs text-slate-100">{{ $latestEvent->location ?: 'TBD Venue' }}</p>
+                                    </div>
+                                </div>
 
-                        @if ($latestEvent->description)
-                            <p class="type-body mt-4 border-l-2 border-cyan-400/40 pl-3 text-sm leading-relaxed text-slate-300">{{ $latestEvent->description }}</p>
-                        @endif
-
-                        <div class="mt-5 flex flex-1 flex-col border-t border-cyan-400/25 pt-3">
-                            <div class="mb-2 flex items-center justify-between">
-                                <h3 class="type-kicker text-xs text-emerald-200">Placements</h3>
-                                <p class="type-label text-[10px] text-slate-500">Top 4</p>
+                                <div class="flex flex-1 flex-col border border-slate-800/80 bg-slate-950/58 px-3 py-3">
+                                    <p class="type-kicker text-[10px] text-slate-500">Event Note</p>
+                                    <p class="type-body mt-2 text-sm leading-relaxed text-slate-300">
+                                        {{ \Illuminate\Support\Str::limit($latestEvent->description ?: 'Placements and event details are ready to review.', 180) }}
+                                    </p>
+                                </div>
                             </div>
-                            <div class="space-y-1.5">
+
+                            <div class="flex min-h-0 flex-col border border-cyan-400/18 bg-slate-950/52 p-3">
+                                <div class="mb-3 flex items-center justify-between border-b border-cyan-400/15 pb-2">
+                                    <h3 class="type-kicker text-xs text-emerald-200">Podium</h3>
+                                    <p class="type-label text-[10px] text-slate-500">Top 4</p>
+                                </div>
+                                <div class="space-y-2">
                                 @forelse ($latestEventPlacements as $result)
                                     @php
                                         $placement = (int) $result->placement;
-                                        $placementTier = match ($placement) {
-                                            1 => 'diamond',
-                                            2 => 'gold',
-                                            3 => 'silver',
-                                            4 => 'bronze',
-                                            default => 'base',
-                                        };
-
-                                        $placementRowClass = match ($placementTier) {
-                                            'diamond' => 'flex min-h-12 items-center border border-sky-200/80 bg-[linear-gradient(90deg,rgba(56,189,248,0.34),rgba(14,116,144,0.24),rgba(2,6,23,0.9))] px-3 py-2.5 text-sm shadow-[0_0_20px_rgba(56,189,248,0.3)]',
-                                            'gold' => 'flex min-h-11 items-center border border-amber-300/65 bg-[linear-gradient(90deg,rgba(251,191,36,0.2),rgba(2,6,23,0.9))] px-3 py-2 text-sm',
-                                            'silver' => 'flex min-h-11 items-center border border-zinc-200/55 bg-[linear-gradient(90deg,rgba(228,228,231,0.22),rgba(161,161,170,0.14),rgba(2,6,23,0.9))] px-3 py-2 text-sm',
-                                            'bronze' => 'flex min-h-11 items-center border border-orange-300/60 bg-[linear-gradient(90deg,rgba(251,146,60,0.16),rgba(2,6,23,0.9))] px-3 py-2 text-sm',
-                                            default => 'flex min-h-10 items-center border border-slate-800/75 bg-slate-950/72 px-3 py-2 text-sm',
+                                        $placementRowClass = match ($placement) {
+                                            1 => 'border-cyan-200/75 bg-[linear-gradient(90deg,rgba(56,189,248,0.32),rgba(2,6,23,0.92))] shadow-[0_0_20px_rgba(56,189,248,0.24)]',
+                                            2 => 'border-amber-300/60 bg-[linear-gradient(90deg,rgba(251,191,36,0.18),rgba(2,6,23,0.92))]',
+                                            3 => 'border-zinc-200/50 bg-[linear-gradient(90deg,rgba(228,228,231,0.16),rgba(2,6,23,0.92))]',
+                                            4 => 'border-orange-300/55 bg-[linear-gradient(90deg,rgba(251,146,60,0.15),rgba(2,6,23,0.92))]',
+                                            default => 'border-slate-800/75 bg-slate-950/72',
                                         };
                                     @endphp
-                                    <div class="{{ $placementRowClass }}">
-                                        <p class="flex w-12 items-center gap-1.5 text-sm font-bold tracking-[0.03em] text-amber-300 [font-family:var(--font-display)]">
-                                            <span class="inline-flex h-4 w-4 items-center justify-center">
-                                                @if ($placement === 1)
-                                                    <svg viewBox="0 0 20 20" fill="none" class="h-4 w-4 text-amber-300" aria-hidden="true">
-                                                        <path d="M3 15.5h14l-1.1-7-3.9 3.2L10 4.5 8 11.7 4.1 8.5 3 15.5Z" fill="currentColor"/>
-                                                        <path d="M6.2 17h7.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-                                                    </svg>
-                                                @endif
-                                            </span>
-                                            <span class="tabular-nums">{{ $placement }}</span>
-                                        </p>
-                                        <p class="type-display-copy min-w-0 flex-1 truncate pr-1 text-[15px] leading-tight text-slate-100">{{ $result->player->user->nickname }}</p>
+                                    <div class="flex items-center gap-3 border px-3 py-2.5 {{ $placementRowClass }}">
+                                        <div class="flex h-8 w-8 shrink-0 items-center justify-center border border-slate-700/80 bg-slate-950/65 text-sm font-bold text-amber-300 [font-family:var(--font-display)]">
+                                            {{ $placement }}
+                                        </div>
+                                        <div class="min-w-0 flex-1">
+                                            <p class="type-display-copy truncate text-[15px] leading-tight text-slate-100">{{ $result->player->user->nickname }}</p>
+                                            <p class="mt-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">Placement #{{ $placement }}</p>
+                                        </div>
                                     </div>
                                 @empty
                                     <p class="type-body text-sm text-slate-400">No placements recorded yet.</p>
                                 @endforelse
+                                </div>
                             </div>
                         </div>
                     </div>

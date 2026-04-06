@@ -67,6 +67,7 @@ class DashboardController extends Controller
                 'activePanel' => $activePanel,
                 'leaderboard' => $leaderboard,
                 'leaderboardProfiles' => $leaderboardProfiles,
+                'leaderboardScoreTooltip' => $rankingService->leaderboardScoreTooltip(),
                 'players' => $players,
                 'playersWithoutResults' => $playersWithoutResults,
                 'registerableUsers' => $registerableUsers,
