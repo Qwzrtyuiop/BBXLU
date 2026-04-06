@@ -650,9 +650,9 @@
                             <p class="type-headline mt-3 break-words text-3xl leading-none text-cyan-100 xl:text-[2.15rem]">{{ $metaStats['best_finish'] ? \Illuminate\Support\Str::headline($metaStats['best_finish']) : '-' }}</p>
                         </div>
                         <div class="mt-4 border-t border-cyan-400/15 pt-3 text-center">
-                            <p class="type-label text-[9px] text-cyan-200/80">Points</p>
+                            <p class="type-label text-[9px] text-cyan-200/80">Total</p>
                             <p class="type-stat mt-2 text-3xl leading-none text-amber-100">{{ $metaStats['best_finish_points'] > 0 ? $metaStats['best_finish_points'] : '--' }}</p>
-                            <p class="type-body mt-1 text-xs text-slate-400">{{ $metaStats['best_finish_points'] > 0 ? 'weighted finish points' : 'No finish data yet' }}</p>
+                            <p class="type-body mt-1 text-xs text-slate-400">{{ $metaStats['best_finish_points'] > 0 ? 'points' : 'No finish data yet' }}</p>
                         </div>
                     </div>
                     <div class="flex min-h-[7.25rem] flex-col items-center justify-center border border-slate-800/80 bg-slate-950/45 p-3 text-center xl:min-h-0">

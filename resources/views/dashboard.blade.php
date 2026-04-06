@@ -423,11 +423,11 @@
                                                     <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ optional($overviewEvent->creator)->nickname ?: 'System' }}</p>
                                                 </div>
                                                 <div class="border border-slate-800/80 bg-slate-950/60 px-3 py-2">
-                                                    <p class="type-label text-[9px] text-slate-500">Date Lock</p>
+                                                    <p class="type-label text-[9px] text-slate-500">Date</p>
                                                     <p class="type-body-strong mt-1 text-[13px] text-slate-100">{{ $overviewEventIsToday ? 'Today' : $overviewEvent->date->format('l') }}</p>
                                                 </div>
                                                 <div class="border border-slate-800/80 bg-slate-950/60 px-3 py-2">
-                                                    <p class="type-label text-[9px] text-slate-500">Queue Behind It</p>
+                                                    <p class="type-label text-[9px] text-slate-500">Queue</p>
                                                     <p class="type-stat mt-1 text-[13px] text-amber-200">{{ $overviewQueueEvents->count() }}</p>
                                                 </div>
                                             </div>
@@ -644,7 +644,7 @@
                             <h3 class="type-headline mt-1 text-xl text-amber-100">{{ $selectedEvent ? ($selectedEventStarted ? 'Event Locked' : 'Edit Event') : 'Create Event' }}</h3>
                             <p class="type-body mt-1 text-xs text-slate-400">
                                 {{ $selectedEvent
-                                    ? ($selectedEventStarted ? 'This event has already started, so its details are now read-only.' : 'Updating the selected event from the directory.')
+                                    ? ($selectedEventStarted ? 'This event has already started. Editing unavailable.' : 'Updating the selected event from the directory.')
                                     : 'Fill out the form below to create a new event.' }}
                             </p>
                         </div>

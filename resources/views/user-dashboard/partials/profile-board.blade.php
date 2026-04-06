@@ -4,6 +4,32 @@
     $profileName = $displayUser?->name ?: $displayName;
     $claimLabel = $displayUser?->is_claimed ? 'Claimed Account' : 'Unclaimed Account';
     $profileModeLabel = $isSelfView ? 'Self Dashboard' : 'Player Profile';
+    $awardAchievementStyles = [
+        'Swiss Champ' => [
+            'border' => 'border-amber-400/35',
+            'glow' => 'bg-amber-300/20',
+            'title_class' => 'text-amber-100',
+            'count_class' => 'text-amber-100 border-amber-400/35 bg-amber-500/10',
+        ],
+        'Swiss King' => [
+            'border' => 'border-cyan-400/35',
+            'glow' => 'bg-cyan-300/20',
+            'title_class' => 'text-cyan-100',
+            'count_class' => 'text-cyan-100 border-cyan-400/35 bg-cyan-500/10',
+        ],
+        'Bird King' => [
+            'border' => 'border-fuchsia-400/35',
+            'glow' => 'bg-fuchsia-300/20',
+            'title_class' => 'text-fuchsia-100',
+            'count_class' => 'text-fuchsia-100 border-fuchsia-400/35 bg-fuchsia-500/10',
+        ],
+    ];
+    $defaultAwardAchievementStyle = [
+        'border' => 'border-emerald-400/35',
+        'glow' => 'bg-emerald-300/20',
+        'title_class' => 'text-emerald-100',
+        'count_class' => 'text-emerald-100 border-emerald-400/35 bg-emerald-500/10',
+    ];
     $recentMatchEventOptions = $recentMatches
         ->map(fn ($match) => [
             'id' => (string) $match->event_id,
@@ -11,6 +37,34 @@
         ])
         ->unique('id')
         ->values();
+    $recentAwardAchievements = $recentAwards
+        ->groupBy(fn ($award) => (string) ($award->award?->name ?? 'Unknown Award'))
+        ->map(function ($rows, string $awardName) use ($awardAchievementStyles, $defaultAwardAchievementStyle): array {
+            $latestAward = $rows->sortByDesc(function ($award): int {
+                return (($award->event?->date?->timestamp ?? 0) * 1000) + (int) $award->id;
+            })->first();
+            $style = $awardAchievementStyles[$awardName] ?? $defaultAwardAchievementStyle;
+
+            return [
+                'name' => $awardName,
+                'count' => $rows->count(),
+                'latest_event' => $latestAward?->event?->title,
+                'latest_date' => $latestAward?->event?->date?->format('d M Y'),
+                'sort_value' => (($latestAward?->event?->date?->timestamp ?? 0) * 1000) + (int) ($latestAward?->id ?? 0),
+                'border' => $style['border'],
+                'glow' => $style['glow'],
+                'title_class' => $style['title_class'],
+                'count_class' => $style['count_class'],
+            ];
+        })
+        ->sortByDesc('sort_value')
+        ->values();
+    $headerHighlights = [
+        ['label' => 'Wins', 'value' => $profileStats['wins'], 'tone' => 'text-amber-100'],
+        ['label' => 'Awards', 'value' => $profileStats['awards'], 'tone' => 'text-fuchsia-100'],
+        ['label' => 'Win Rate', 'value' => $profileStats['win_rate'] !== null ? number_format($profileStats['win_rate'], 1).'%' : '-', 'tone' => 'text-cyan-100'],
+        ['label' => 'Record', 'value' => $profileStats['match_record'], 'tone' => 'text-slate-100'],
+    ];
     $statGroups = [
         [
             'eyebrow' => 'Competitive Snapshot',
@@ -54,65 +108,74 @@
     ];
 @endphp
 
-<div class="grid gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(22rem,0.9fr)]">
+<div class="space-y-4">
     <section class="space-y-4">
         <article class="overflow-hidden border border-cyan-400/30 bg-[linear-gradient(145deg,rgba(8,47,73,0.82)_0%,rgba(2,6,23,0.95)_50%,rgba(15,23,42,0.98)_100%)] shadow-[0_24px_60px_rgba(2,6,23,0.42)]">
-            <div class="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(18rem,1fr)] lg:p-5">
-                <div class="min-w-0">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <span class="type-label border border-cyan-400/45 bg-cyan-400/10 px-2.5 py-1 text-[10px] text-cyan-100">{{ strtoupper($profileModeLabel) }}</span>
-                        @if ($profilePlayer)
-                            <span class="type-label border border-slate-700 px-2.5 py-1 text-[10px] text-slate-300">Player #{{ $profilePlayer->id }}</span>
+            <div class="grid gap-5 p-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(19rem,0.9fr)] lg:p-5">
+                <div class="relative overflow-hidden border border-cyan-400/20 bg-[linear-gradient(140deg,rgba(8,47,73,0.4)_0%,rgba(2,6,23,0.1)_50%,rgba(15,23,42,0.55)_100%)] p-5 sm:p-6">
+                    <div class="pointer-events-none absolute -left-10 top-0 h-28 w-28 rounded-full bg-cyan-300/10 blur-3xl"></div>
+                    <div class="pointer-events-none absolute right-0 top-0 h-24 w-24 rounded-full bg-fuchsia-300/10 blur-3xl"></div>
+                    <div class="relative min-w-0">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="type-label border border-cyan-400/45 bg-cyan-400/10 px-2.5 py-1 text-[10px] text-cyan-100">{{ strtoupper($profileModeLabel) }}</span>
+                            @if ($profilePlayer)
+                                <span class="type-label border border-slate-700 px-2.5 py-1 text-[10px] text-slate-300">Player #{{ $profilePlayer->id }}</span>
+                            @endif
+                            <span class="type-label border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-[10px] text-emerald-200">{{ $claimLabel }}</span>
+                        </div>
+
+                        <h2 class="type-headline mt-4 break-words text-4xl text-cyan-100 sm:text-5xl">{{ $displayName }}</h2>
+                        <p class="mt-3 text-base text-slate-200">{{ $profileName }}</p>
+
+                        @if ($isSelfView)
+                            <p class="mt-2 text-sm text-slate-400">{{ $displayUser?->email ?: 'No email saved yet.' }}</p>
+                        @else
+                            <p class="mt-2 text-sm text-slate-400">Public player profile.</p>
                         @endif
-                        <span class="type-label border border-emerald-400/40 bg-emerald-500/10 px-2.5 py-1 text-[10px] text-emerald-200">{{ $claimLabel }}</span>
+
+                        @if ($recentAwardAchievements->isNotEmpty())
+                            <div class="mt-6 flex flex-wrap items-center gap-2">
+                                @foreach ($recentAwardAchievements as $achievement)
+                                    <div class="group relative overflow-hidden border {{ $achievement['border'] }} bg-[linear-gradient(155deg,rgba(15,23,42,0.92)_0%,rgba(2,6,23,0.98)_100%)] px-3 py-2 shadow-[0_10px_24px_rgba(2,6,23,0.22)]">
+                                        <div class="pointer-events-none absolute -right-4 top-1 h-10 w-10 rounded-full {{ $achievement['glow'] }} blur-2xl"></div>
+                                        <div class="relative flex items-center gap-2">
+                                            <span class="type-title whitespace-nowrap text-sm {{ $achievement['title_class'] }}">{{ $achievement['name'] }}</span>
+                                            <span class="type-label inline-flex items-center border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] {{ $achievement['count_class'] }}">
+                                                x{{ $achievement['count'] }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @else
+                            <p class="mt-6 text-sm text-slate-500">No badges earned yet.</p>
+                        @endif
                     </div>
-
-                    <h2 class="type-headline mt-3 break-words text-3xl text-cyan-100 sm:text-4xl">{{ $displayName }}</h2>
-                    <p class="mt-2 text-sm text-slate-300">{{ $profileName }}</p>
-
-                    @if ($isSelfView)
-                        <p class="mt-2 text-sm text-slate-400">{{ $displayUser?->email ?: 'No email saved yet.' }}</p>
-                    @else
-                        <p class="mt-2 text-sm text-slate-400">Public player profile.</p>
-                    @endif
                 </div>
 
-                <div class="grid gap-3 sm:grid-cols-2">
+                <div class="grid gap-3">
                     <button
                         type="button"
                         data-profile-events-open
-                        class="border border-amber-400/25 bg-slate-950/45 px-4 py-3 text-left transition hover:border-amber-300/50 hover:bg-slate-950/65"
+                        class="border border-amber-400/25 bg-[linear-gradient(165deg,rgba(245,158,11,0.08)_0%,rgba(2,6,23,0.88)_100%)] px-4 py-4 text-left transition hover:border-amber-300/55 hover:bg-slate-950/70"
                     >
                         <p class="type-kicker text-[10px] text-amber-300/75">Events Joined</p>
-                        <p class="mt-2 text-3xl font-bold text-amber-100">{{ $profileStats['joined'] }}</p>
-                        <p class="mt-1 text-xs text-slate-400">Open full event list</p>
+                        <div class="mt-3 flex items-end justify-between gap-4">
+                            <div>
+                                <p class="text-4xl font-bold text-amber-100">{{ $profileStats['joined'] }}</p>
+                                <p class="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">Full event history</p>
+                            </div>
+                            <span class="type-label border border-amber-400/35 px-2.5 py-1 text-[10px] text-amber-100">Open</span>
+                        </div>
                     </button>
 
-                    <div class="border border-slate-800 bg-slate-950/45 px-4 py-3">
-                        <p class="type-kicker text-[10px] text-slate-500">Swiss Events</p>
-                        <p class="mt-2 text-3xl font-bold text-slate-100">{{ $profileStats['swiss_events'] }}</p>
-                        <p class="mt-1 text-xs text-slate-400">Used for top cut rate</p>
-                    </div>
-
-                    <div class="border border-fuchsia-400/25 bg-slate-950/45 px-4 py-3">
-                        <p class="type-kicker text-[10px] text-fuchsia-300/75">Public Link</p>
-                        <p class="mt-2 truncate text-sm font-semibold text-slate-100">{{ $publicProfileUrl ?: '-' }}</p>
-                        @if ($publicProfileUrl && ! $isSelfView)
-                            <a href="{{ $publicProfileUrl }}" class="mt-2 inline-flex border border-fuchsia-400/40 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-fuchsia-100 transition hover:bg-fuchsia-400/10">Open</a>
-                        @elseif ($publicProfileUrl)
-                            <p class="mt-2 text-[11px] text-slate-400">Use this as the shareable profile URL.</p>
-                        @endif
-                    </div>
-
-                    <div class="border border-cyan-400/25 bg-slate-950/45 px-4 py-3">
-                        <p class="type-kicker text-[10px] text-cyan-300/75">{{ $isSelfView ? 'Self View' : 'Navigation' }}</p>
-                        @if ($isSelfView)
-                            <a href="{{ route('home') }}" class="mt-2 inline-flex border border-cyan-400/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-400/10">Home</a>
-                        @elseif ($viewer && $viewer->role !== 'admin')
-                            <a href="{{ $selfDashboardUrl }}" class="mt-2 inline-flex border border-cyan-400/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-400/10">My Dashboard</a>
-                        @else
-                            <a href="{{ route('home') }}" class="mt-2 inline-flex border border-cyan-400/40 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-400/10">Home</a>
-                        @endif
+                    <div class="grid gap-3 sm:grid-cols-2">
+                        @foreach ($headerHighlights as $highlight)
+                            <div class="border border-slate-800/80 bg-slate-950/45 px-4 py-3">
+                                <p class="type-kicker text-[10px] text-slate-500">{{ $highlight['label'] }}</p>
+                                <p class="mt-2 text-2xl font-bold {{ $highlight['tone'] }}">{{ $highlight['value'] }}</p>
+                            </div>
+                        @endforeach
                     </div>
                 </div>
             </div>
@@ -253,49 +316,6 @@
             </article>
         </section>
     </section>
-
-    <aside class="space-y-4 2xl:pt-0">
-        <article class="border border-slate-800/80 bg-slate-950/72 p-4">
-            <div class="border-b border-slate-800/80 pb-2">
-                <p class="type-kicker text-[10px] text-emerald-300/75">Schedule</p>
-                <h3 class="type-headline mt-1 text-lg text-emerald-100">Upcoming Events</h3>
-            </div>
-
-            <div class="mt-3 space-y-2">
-                @forelse ($upcomingEvents as $participant)
-                    <article class="border border-slate-800/80 bg-slate-900/65 px-3 py-2.5">
-                        <p class="text-sm font-semibold text-slate-100">{{ $participant->event->title }}</p>
-                        <p class="mt-1 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                            {{ $participant->event->date->format('d M Y') }}@if ($participant->event->eventType) / {{ $participant->event->eventType->name }}@endif
-                        </p>
-                        <p class="mt-1 text-xs text-slate-400">{{ $participant->event->location ?: 'Venue to be announced.' }}</p>
-                    </article>
-                @empty
-                    <p class="text-sm text-slate-400">No upcoming registrations right now.</p>
-                @endforelse
-            </div>
-        </article>
-
-        <article class="border border-fuchsia-400/20 bg-slate-950/72 p-4">
-            <div class="border-b border-slate-800/80 pb-2">
-                <p class="type-kicker text-[10px] text-fuchsia-300/75">Awards</p>
-                <h3 class="type-headline mt-1 text-lg text-fuchsia-100">Recent Award Calls</h3>
-            </div>
-
-            <div class="mt-3 space-y-2">
-                @forelse ($recentAwards as $award)
-                    <article class="border border-slate-800/80 bg-slate-900/65 px-3 py-2.5">
-                        <p class="text-sm font-semibold text-slate-100">{{ $award->award->name }}</p>
-                        <p class="mt-1 text-[11px] uppercase tracking-[0.14em] text-slate-500">
-                            {{ $award->event->title }} / {{ $award->event->date->format('d M Y') }}
-                        </p>
-                    </article>
-                @empty
-                    <p class="text-sm text-slate-400">No awards assigned yet.</p>
-                @endforelse
-            </div>
-        </article>
-    </aside>
 </div>
 
 @foreach ($recentMatches as $match)

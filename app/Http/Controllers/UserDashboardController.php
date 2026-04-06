@@ -58,7 +58,6 @@ class UserDashboardController extends Controller
     private function profileViewData(?User $viewer, ?User $profileUser, ?Player $profilePlayer, bool $isSelfView): array
     {
         $stats = $this->defaultStats();
-        $upcomingEvents = collect();
         $recentResults = collect();
         $recentAwards = collect();
         $recentMatches = collect();
@@ -66,11 +65,6 @@ class UserDashboardController extends Controller
 
         if ($profilePlayer) {
             $joinedEvents = $this->joinedEvents($profilePlayer);
-            $upcomingEvents = $joinedEvents
-                ->filter(fn (EventParticipant $participant) => $participant->event && $participant->event->status === 'upcoming')
-                ->sortBy(fn (EventParticipant $participant) => $participant->event->date->timestamp)
-                ->values()
-                ->take(8);
             $recentResults = $this->recentResults($profilePlayer);
             $recentAwards = $this->recentAwards($profilePlayer);
             $recentMatches = $this->recentMatches($profilePlayer);
@@ -83,7 +77,6 @@ class UserDashboardController extends Controller
             'profilePlayer' => $profilePlayer,
             'isSelfView' => $isSelfView,
             'profileStats' => $stats,
-            'upcomingEvents' => $upcomingEvents,
             'recentResults' => $recentResults,
             'recentAwards' => $recentAwards,
             'recentMatches' => $recentMatches,

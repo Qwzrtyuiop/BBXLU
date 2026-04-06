@@ -600,8 +600,6 @@ class LocalMockDataSeeder extends Seeder
         $patterns = [
             ['X', 'B'],
             ['B', 'X'],
-            ['X', 'Other'],
-            ['Other', 'B'],
         ];
 
         $pattern = $patterns[($roundNumber + $matchNumber - 2) % count($patterns)];
