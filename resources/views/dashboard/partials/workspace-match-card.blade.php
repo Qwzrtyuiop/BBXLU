@@ -42,6 +42,7 @@
     $bracketOutgoingHalfHeightRem = $bracketOutgoingHalfHeightRem ?? 0;
     $bracketLaneWidthRem = 1.75;
     $bracketColumnGapRem = 2;
+    $allowCompletedSwissEdit = $allowCompletedSwissEdit ?? false;
 @endphp
 
 @if ($layout === 'swiss')
@@ -212,6 +213,9 @@
                     'storedDeck' => [$match->player2_bey1, $match->player2_bey2, $match->player2_bey3],
                 ],
             ];
+            $canEditCompletedSwissMatch = $allowCompletedSwissEdit
+                && ! $match->is_bye
+                && ! $hasPlaceholderOpponent;
         @endphp
         <article class="space-y-4">
             <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
@@ -283,6 +287,26 @@
                         </div>
                     </div>
                 </div>
+
+                @if ($canEditCompletedSwissMatch)
+                    <details class="rounded-2xl border border-amber-500/30 bg-amber-500/[0.04] p-3" @if ($isReopenedMatch) open @endif>
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-3">
+                            <div>
+                                <p class="text-[10px] uppercase tracking-[0.14em] text-amber-300/80">Edit Match</p>
+                                <p class="mt-1 text-sm text-slate-100">Adjust this completed Swiss result before the next stage is generated.</p>
+                            </div>
+                            <span class="rounded-xl border border-amber-500/60 bg-amber-500/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-100">
+                                {{ $isReopenedMatch ? 'Editing' : 'Open Editor' }}
+                            </span>
+                        </summary>
+
+                        <div class="mt-4 border-t border-amber-500/20 pt-4">
+                            @include('dashboard.partials.workspace-match-editor', [
+                                'submitLabel' => 'Save Match Changes',
+                            ])
+                        </div>
+                    </details>
+                @endif
 
                 <div class="grid gap-3 xl:grid-cols-2">
                     @foreach ([

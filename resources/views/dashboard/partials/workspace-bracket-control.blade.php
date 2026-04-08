@@ -246,6 +246,7 @@
                                             'round' => $round,
                                             'layout' => 'swiss',
                                             'matchIndex' => $loop->iteration,
+                                            'allowCompletedSwissEdit' => $round->id === $lastSwissRound?->id && $singleElimRoundCount === 0,
                                         ])
                                     @endforeach
                                 </div>
