@@ -3,7 +3,7 @@
     data-register-open-on-load="{{ $showRegistrationModal ? 'true' : 'false' }}"
     class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/86 px-4 py-6"
 >
-    <div class="w-full max-w-3xl border border-cyan-400/35 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.98)_100%)] p-4 shadow-[0_28px_72px_rgba(2,6,23,0.72)]">
+    <div class="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden border border-cyan-400/35 bg-[linear-gradient(160deg,rgba(8,47,73,0.22)_0%,rgba(2,6,23,0.98)_100%)] p-4 shadow-[0_28px_72px_rgba(2,6,23,0.72)]">
         <div class="flex items-start justify-between gap-3 border-b border-slate-800/80 pb-3">
             <div class="min-w-0">
                 <p class="type-kicker text-[10px] text-cyan-300/75">Register Players</p>
@@ -16,13 +16,13 @@
             </button>
         </div>
 
-        <form action="{{ route('events.participants.store', $registrationEvent) }}" method="POST" data-register-form class="mt-3 grid gap-3">
+        <form action="{{ route('events.participants.store', $registrationEvent) }}" method="POST" data-register-form class="mt-3 flex min-h-0 flex-1 flex-col gap-3">
             @csrf
             <input type="hidden" name="dashboard_redirect" value="1">
             <input type="hidden" name="dashboard_panel" value="{{ $registrationPanel }}">
             <input type="hidden" name="dashboard_event_id" value="{{ $registrationEvent->id }}">
 
-            <div class="grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,.92fr)]">
+            <div class="grid min-h-0 flex-1 items-stretch gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,.92fr)]">
                 <div class="grid gap-3">
                     <section class="border border-slate-800/80 bg-slate-950/55 p-3">
                         <div class="flex items-center justify-between gap-2">
@@ -67,13 +67,13 @@
                     </section>
                 </div>
 
-                <section class="border border-slate-800/80 bg-slate-950/55 p-3">
+                <section class="flex min-h-0 h-full flex-col border border-slate-800/80 bg-slate-950/55 p-3">
                     <div class="flex items-center justify-between gap-2">
                         <p class="type-title text-[13px] text-fuchsia-100">Selected Players</p>
                         <span data-register-count class="type-label text-[8px] text-slate-500">{{ $oldSelectedNicknames->count() }} selected</span>
                     </div>
 
-                    <div data-register-selected class="mt-2 min-h-[11rem] max-h-[15rem] space-y-1.5 overflow-y-auto no-scrollbar border border-dashed border-slate-800 bg-slate-950/40 p-2"></div>
+                    <div data-register-selected class="mt-2 flex min-h-[18rem] flex-1 flex-col space-y-1.5 overflow-y-auto no-scrollbar border border-dashed border-slate-800 bg-slate-950/40 p-2"></div>
                 </section>
             </div>
 
