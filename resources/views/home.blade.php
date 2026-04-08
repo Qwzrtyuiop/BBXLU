@@ -10,7 +10,7 @@
                     </div>
                 </div>
                 <p class="type-headline mt-2 text-[clamp(1.9rem,7vw,4.4rem)] leading-[0.95] text-cyan-100 drop-shadow-[0_0_14px_rgba(34,211,238,0.6)] sm:tracking-[0.12em]">
-                    PALDO SA NORTE SEASON 2
+                    LA UNION BLADERS SEASON 2
                 </p>
                 <p class="type-body mx-auto mt-4 max-w-2xl px-2 text-sm text-slate-300 sm:text-base">
                     Wala parin Kaming DTI Permit.
